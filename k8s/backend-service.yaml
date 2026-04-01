@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: v2ai-backend
+  namespace: v2ai
+spec:
+  type: LoadBalancer
+  selector:
+    app: v2ai-backend
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8000

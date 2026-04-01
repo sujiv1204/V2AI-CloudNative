@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: v2ai-backend
+  namespace: v2ai
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: v2ai-backend
+  template:
+    metadata:
+      labels:
+        app: v2ai-backend
+    spec:
+      containers:
+      - name: backend
+        image: v2ai-backend:latest
+        ports:
+        - containerPort: 8000
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"

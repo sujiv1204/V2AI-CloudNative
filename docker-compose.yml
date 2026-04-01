@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: v2ai-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./backend:/app
+      - shared_uploads:/app/uploads
+    networks:
+      - v2ai-network
+    depends_on:
+      - ml_pipeline
+
+  ml_pipeline:
+    build:
+      context: ./ml_pipeline
+      dockerfile: Dockerfile
+    container_name: v2ai-ml-pipeline
+    ports:
+      - "8001:8001"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CUDA_VISIBLE_DEVICES=
+    volumes:
+      - ./ml_pipeline:/app
+    networks:
+      - v2ai-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: v2ai-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - v2ai-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+
+volumes:
+  shared_uploads:
+  prometheus_data:
+
+networks:
+  v2ai-network:
+    driver: bridge
