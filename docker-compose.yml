@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   backend:
@@ -8,10 +8,13 @@ services:
     container_name: v2ai-backend
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./backend:/app
+      - ./gcp-key.json:/app/gcp-key.json:ro
       - shared_uploads:/app/uploads
     networks:
       - v2ai-network
@@ -44,7 +47,7 @@ services:
     networks:
       - v2ai-network
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
+      - "--config.file=/etc/prometheus/prometheus.yml"
 
 volumes:
   shared_uploads:
