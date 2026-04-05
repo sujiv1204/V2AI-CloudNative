@@ -88,7 +88,31 @@ curl -X POST -F 'file=@video.mp4' http://localhost:8000/upload
 bash verify-day2.sh
 ```
 
-**Ready for:** Adding GCP key and full end-to-end test with GCS/Firestore
+**Ready for:** Day 3 orchestration once C2 and C3 complete Day 1
+
+---
+
+### Day 3: Orchestration & Integration - READY TO START
+
+**Goal:** Backend orchestrates calls to ML Pipeline and QA services
+
+**What Day 3 Needs from C2:**
+- `/transcript` endpoint (POST) - takes audio file, returns transcribed text
+- `/summarize` endpoint (POST) - takes text, returns summary
+
+**What Day 3 Needs from C3:**
+- `/qa` endpoint (POST) - takes text, returns list of questions
+
+**C1 Day 3 Implementation:**
+- Update `/upload` endpoint to call C2's `/transcript` after audio extraction
+- Call C2's `/summarize` on transcript
+- Call C3's `/qa` on summary
+- Aggregate all responses (transcript + summary + questions)
+- Return final combined response
+
+**Status:** Waiting for C2 Day 1 & C3 Day 1 completion
+- C2 needs Whisper, BART models + endpoints
+- C3 needs T5 QA endpoint
 
 ---
 
@@ -96,7 +120,11 @@ bash verify-day2.sh
 
 ### Day 1: Not Started
 
-Will implement Whisper, BART, T5 models when Day 1 testing complete.
+**Needs to implement:**
+- Whisper (speech-to-text) on audio files from C1
+- BART (summarization) on transcripts
+- Endpoints: `POST /transcript`, `POST /summarize`
+- Return structured JSON responses
 
 ---
 
@@ -104,7 +132,10 @@ Will implement Whisper, BART, T5 models when Day 1 testing complete.
 
 ### Day 1: Not Started
 
-Will implement T5 QA endpoint when ML pipeline ready.
+**Needs to implement:**
+- T5 model (question generation)
+- Endpoint: `POST /qa` - takes text, returns list of questions
+- Return structured JSON response
 
 ---
 
