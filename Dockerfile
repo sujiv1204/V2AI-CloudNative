@@ -1,0 +1,60 @@
+# ---------------------------
+# BASE IMAGE (lightweight)
+# ---------------------------
+FROM python:3.10-slim
+
+# ---------------------------
+# ENV VARIABLES (IMPORTANT)
+# ---------------------------
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# HuggingFace model cache (inside container)
+ENV TRANSFORMERS_CACHE=/models
+ENV HF_HOME=/models
+
+# ---------------------------
+# WORKING DIRECTORY
+# ---------------------------
+WORKDIR /app
+
+# ---------------------------
+# SYSTEM DEPENDENCIES
+# ---------------------------
+# ffmpeg REQUIRED for whisper
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# ---------------------------
+# CREATE MODEL CACHE DIR
+# ---------------------------
+RUN mkdir -p /models
+
+# ---------------------------
+# INSTALL PYTHON DEPENDENCIES
+# ---------------------------
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir --default-timeout=1000 \
+    --extra-index-url https://download.pytorch.org/whl/cpu \
+    -r requirements.txt
+
+# ---------------------------
+# COPY PROJECT CODE
+# ---------------------------
+COPY . .
+
+# ---------------------------
+# EXPOSE PORT
+# ---------------------------
+EXPOSE 8001
+
+# ---------------------------
+# START SERVICE
+# ---------------------------
+# IMPORTANT:
+# - No model loading here 
+# - Lazy loading handles it 
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]
