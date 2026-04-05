@@ -26,11 +26,27 @@ Scalable lecture video understanding as a service.
 
 ## Quick Start
 
-### Local Development
+### Using Docker Compose
 
 ```bash
 cp .env.example .env
-docker-compose up --build
+docker compose up --build
+```
+
+Or use the Makefile:
+```bash
+make build
+make up
+make logs
+```
+
+### Using Python Virtual Environment
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -q -r backend/requirements.txt
+bash verify-day1.sh
 ```
 
 **Services:**
@@ -135,3 +151,77 @@ cp /path/to/service-account-key.json gcp-key.json
 - C2 can retrieve audio from `audio_path` in Firestore for transcription
 - C3 can write tests against the `/upload` endpoint
 - All services communicate via Docker network
+
+## Verification Guide - How to Test Day 1
+
+### Option 1: Test with Docker Compose
+```bash
+# Start all services
+docker compose up --build
+
+# In another terminal, test endpoints
+curl -X GET http://localhost:8000/health
+curl -X GET http://localhost:8001/health
+
+# Test upload endpoint with a video file
+curl -X POST -F 'file=@lecture.mp4' http://localhost:8000/upload
+
+# View logs
+docker compose logs -f backend
+```
+
+### Option 2: Test with Local venv
+```bash
+# Run verification script
+bash verify-day1.sh
+
+# Script validates:
+# 1. All Python modules import correctly
+# 2. GCP config loads from .env
+# 3. API routes registered
+# 4. Required directories created
+```
+
+### What Each Test Checks
+
+1. **Health Checks** - Confirm services are running
+   - Backend: `GET /health` → `{"status": "ok"}`
+   - ML Pipeline: `GET /health` → `{"status": "ok"}`
+
+2. **Configuration** - Validates GCP settings loaded:
+   - GCP_PROJECT_ID
+   - GCS_BUCKET_NAME (v2aibucket)
+   - FIRESTORE_DB_NAME (v2aidb)
+
+3. **Endpoints** - Confirms API routes exist:
+   - Backend: `POST /upload` (video processing)
+   - ML Pipeline: `/transcript`, `/summarize`, `/qa` (placeholders for C2)
+
+4. **Audio Extraction** - When actual video uploaded:
+   - Extract WAV from MP4/MOV/AVI
+   - Save locally to `uploads/audio/`
+   - Upload to GCS `gs://v2aibucket/audio/`
+
+5. **GCP Integration** - When `.gcp-key.json` in place:
+   - Upload files to Cloud Storage
+   - Store metadata in Firestore
+   - Return file_id and GCS paths to client
+
+### Testing Without GCP Key (Local Only)
+Services will start but GCP operations will fail. Test structure only:
+```bash
+# Services start
+docker compose up
+
+# Health checks work
+curl http://localhost:8000/health
+
+# File upload endpoint exists but GCS ops will error (expected)
+curl -X POST -F 'file=@video.mp4' http://localhost:8000/upload
+```
+
+Add real GCP key to test full pipeline:
+```bash
+cp /path/to/gcp-key.json ./gcp-key.json
+docker compose restart backend
+```
