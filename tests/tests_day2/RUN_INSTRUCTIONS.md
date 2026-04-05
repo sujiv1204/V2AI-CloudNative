@@ -1,43 +1,49 @@
-# Run Instructions for T5 QA Service
+# Run Instructions for T5 QA Pipeline (Docker Compose)
 
-Follow these steps to build, run, and verify the containerized T5 Question Generation service.
+This setup runs a 3-service pipeline:
+1. **qa-api**: The FastAPI T5 service.
+2. **redis**: Cache layer to store generated questions.
+3. **redis-commander**: Web UI to view the cache.
 
-## 1. Build the Docker Image
-This installs **CPU-only** PyTorch (via the PyTorch CPU wheel index), Python dependencies, and pre-downloads `t5-small` into the image cache. You need internet access during `docker build` for pip and Hugging Face.
+## 1. Start the Pipeline
+This will build the API image (including pre-downloading the T5 model) and start all services.
 
 ```bash
 cd /home/harshil/Documents/vcc/vcc-project/V2AI-CloudNative/tests/tests_day2
-docker build -t qa-service .
+docker-compose up --build -d
 ```
 
-## 2. Run the Container
-Start the container in detached mode and map port 8000. The app is started with **uvicorn** (see `Dockerfile` `CMD`).
-
+## 2. Verify Services are Running
 ```bash
-docker run -d -p 8000:8000 --name qa-test qa-service
+docker-compose ps
 ```
+- `qa-api`: http://localhost:8000
+- `redis-commander`: http://localhost:8081
 
-View logs (model load can take a few seconds on first request):
+## 3. Test Full Pipeline (End-to-End)
 
-```bash
-docker logs -f qa-test
-```
-
-## 3. Verify Endpoints
-
-### Using Bash (curl)
+### Step A: First Request (Cache MISS)
+Run the test script. The first run will generate the question using the T5 model.
 ```bash
 bash test_qa_endpoint.sh
 ```
-
-### Using Python
+Check the logs to see the "Cache MISS" and "Generation" logs:
 ```bash
-python3 test_qa_api.py
+docker logs qa-api
 ```
 
-## 4. Cleanup
-Stop and remove the container when finished.
-
+### Step B: Second Request (Cache HIT)
+Run the test script again. It should be much faster as it pulls from Redis.
 ```bash
-docker stop qa-test && docker rm qa-test
+bash test_qa_endpoint.sh
+```
+Check the logs again to see the "Cache HIT".
+
+### Step C: Visualize Cache
+Open your browser and go to: **http://localhost:8081**
+You will see the `redis` host. Expand it to see the cached context-question pairs.
+
+## 4. Cleanup
+```bash
+docker-compose down
 ```
