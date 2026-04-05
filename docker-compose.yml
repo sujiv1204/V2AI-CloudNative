@@ -13,7 +13,7 @@ services:
     volumes:
       - ./backend:/app
       - ./gcp-key.json:/app/gcp-key.json:ro
-      - shared_uploads:/app/uploads
+      - ./uploads:/app/uploads
     networks:
       - v2ai-network
     depends_on:
@@ -48,7 +48,6 @@ services:
       - "--config.file=/etc/prometheus/prometheus.yml"
 
 volumes:
-  shared_uploads:
   prometheus_data:
 
 networks:

@@ -121,6 +121,10 @@ cp /path/to/service-account-key.json gcp-key.json
 - `FIRESTORE_DB_NAME=v2aidb`
 - `FIRESTORE_COLLECTION=videos`
 
+**⚠️ IMPORTANT: Service Account Key Must Match Project ID**
+- Service account JSON key must be from project `241955658779`
+- See `GCP_KEY_FIX.md` if you get "database not found" errors
+
 ### API Response (POST /upload)
 ```json
 {
@@ -225,3 +229,32 @@ Add real GCP key to test full pipeline:
 cp /path/to/gcp-key.json ./gcp-key.json
 docker compose restart backend
 ```
+
+## Cleanup - Reset Test Data
+
+To delete test files and re-test from scratch:
+
+```bash
+# Clean GCS audio files
+gsutil -m rm gs://v2aibucket/audio/*
+
+# Clean GCS video files
+gsutil -m rm gs://v2aibucket/videos/*
+
+# Clean Firestore 'videos' collection
+gcloud firestore delete-collection v2aidb videos --quiet
+
+# Clean local uploads directory
+rm -rf uploads/
+mkdir -p uploads/audio
+```
+
+Or run the cleanup script:
+```bash
+bash cleanup-test-files.sh
+```
+
+## Documentation
+
+- `C1_DAY1_CHECKLIST.md` - Complete C1 Day 1 verification checklist
+- `SETUP_REPORT.md` - Full setup report with test results
