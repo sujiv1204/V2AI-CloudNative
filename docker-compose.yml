@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend:
     build:
@@ -8,11 +6,14 @@ services:
     container_name: v2ai-backend
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./backend:/app
-      - shared_uploads:/app/uploads
+      - ./gcp-key.json:/app/gcp-key.json:ro
+      - ./uploads:/app/uploads
     networks:
       - v2ai-network
     depends_on:
@@ -28,8 +29,11 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - CUDA_VISIBLE_DEVICES=
+      - TRANSFORMERS_CACHE=/models
+      - HF_HOME=/models
     volumes:
       - ./ml_pipeline:/app
+      - models_cache:/models
     networks:
       - v2ai-network
 
@@ -44,11 +48,11 @@ services:
     networks:
       - v2ai-network
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
+      - "--config.file=/etc/prometheus/prometheus.yml"
 
 volumes:
-  shared_uploads:
   prometheus_data:
+  models_cache:
 
 networks:
   v2ai-network:
