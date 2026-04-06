@@ -29,8 +29,11 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - CUDA_VISIBLE_DEVICES=
+      - TRANSFORMERS_CACHE=/models
+      - HF_HOME=/models
     volumes:
       - ./ml_pipeline:/app
+      - models_cache:/models
     networks:
       - v2ai-network
 
@@ -49,6 +52,7 @@ services:
 
 volumes:
   prometheus_data:
+  models_cache:
 
 networks:
   v2ai-network:
