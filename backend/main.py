@@ -1,6 +1,8 @@
 from fastapi import FastAPI, File, UploadFile, BackgroundTasks
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 import logging
+import os
 from pathlib import Path
 from datetime import datetime
 import uuid6
@@ -16,11 +18,11 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="V2AI Backend")
 
 UPLOAD_DIR = Path(settings.upload_dir)
-UPLOAD_DIR.mkdir(exist_ok=True)
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 AUDIO_DIR = UPLOAD_DIR / "audio"
-AUDIO_DIR.mkdir(exist_ok=True)
+AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
-ML_PIPELINE_URL = "http://ml_pipeline:8001"
+ML_PIPELINE_URL = os.getenv("ML_PIPELINE_URL", "http://ml_pipeline:8001")
 TIMEOUT = 300.0
 
 
@@ -66,7 +68,7 @@ async def process_ml_pipeline(file_id: str, audio_path: str):
             transcript_result = await call_ml_endpoint("/transcript", method="POST", files=files)
             logger.info(f"Transcript response: {transcript_result}")
 
-        if transcript_result and "status" not in transcript_result.get("status", ""):
+        if transcript_result and transcript_result.get("status") == "success":
             transcript_text = transcript_result.get("text", "")
 
             if transcript_text:

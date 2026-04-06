@@ -1,6 +1,7 @@
 import torch
 import logging
 import time
+import threading
 from faster_whisper import WhisperModel
 
 # ---------------------------
@@ -20,33 +21,36 @@ COMPUTE_TYPE = "float16" if DEVICE == "cuda" else "int8"
 WHISPER_MODEL_SIZE = "base"
 
 # ---------------------------
-# GLOBAL LAZY LOADING
+# GLOBAL LAZY LOADING (thread-safe)
 # ---------------------------
 model = None
+_model_lock = threading.Lock()
 
 def get_whisper_model():
     global model
 
     if model is None:
-        try:
-            logger.info(f"Loading Whisper model: {WHISPER_MODEL_SIZE} on {DEVICE}")
+        with _model_lock:
+            if model is None:  # Double-check after acquiring lock
+                try:
+                    logger.info(f"Loading Whisper model: {WHISPER_MODEL_SIZE} on {DEVICE}")
 
-            model = WhisperModel(
-                WHISPER_MODEL_SIZE,
-                device=DEVICE,
-                compute_type=COMPUTE_TYPE
-            )
+                    model = WhisperModel(
+                        WHISPER_MODEL_SIZE,
+                        device=DEVICE,
+                        compute_type=COMPUTE_TYPE
+                    )
 
-            logger.info("Whisper model loaded successfully")
+                    logger.info("Whisper model loaded successfully")
 
-        except Exception as e:
-            logger.error(f"GPU load failed, falling back to CPU: {str(e)}")
+                except Exception as e:
+                    logger.error(f"GPU load failed, falling back to CPU: {str(e)}")
 
-            model = WhisperModel(
-                WHISPER_MODEL_SIZE,
-                device="cpu",
-                compute_type="int8"
-            )
+                    model = WhisperModel(
+                        WHISPER_MODEL_SIZE,
+                        device="cpu",
+                        compute_type="int8"
+                    )
 
     return model
 

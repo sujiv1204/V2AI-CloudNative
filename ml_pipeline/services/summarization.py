@@ -2,6 +2,7 @@ import os
 import torch
 import logging
 import time
+import threading
 from transformers import pipeline, AutoTokenizer
 
 # ---------------------------
@@ -30,31 +31,34 @@ SUMMARY_MAX_LEN = int(os.getenv("SUMMARY_MAX_LEN", 80))
 SUMMARY_MIN_LEN = int(os.getenv("SUMMARY_MIN_LEN", 20))
 
 # ---------------------------
-# GLOBAL LAZY LOADING
+# GLOBAL LAZY LOADING (thread-safe)
 # ---------------------------
 summarizer = None
 tokenizer = None
+_model_lock = threading.Lock()
 
 def get_summarizer():
     global summarizer, tokenizer
 
     if summarizer is None or tokenizer is None:
-        try:
-            logger.info(f"Loading summarization model on device {DEVICE}")
+        with _model_lock:
+            if summarizer is None or tokenizer is None:  # Double-check
+                try:
+                    logger.info(f"Loading summarization model on device {DEVICE}")
 
-            summarizer = pipeline(
-                "summarization",
-                model=MODEL_NAME,
-                device=DEVICE
-            )
+                    summarizer = pipeline(
+                        "summarization",
+                        model=MODEL_NAME,
+                        device=DEVICE
+                    )
 
-            tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+                    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
-            logger.info("Summarization model loaded successfully")
+                    logger.info("Summarization model loaded successfully")
 
-        except Exception as e:
-            logger.error(f"Model loading failed: {str(e)}")
-            raise e
+                except Exception as e:
+                    logger.error(f"Model loading failed: {str(e)}")
+                    raise e
 
     return summarizer, tokenizer
 
