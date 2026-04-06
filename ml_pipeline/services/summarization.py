@@ -96,13 +96,10 @@ def summarize_text(text: str):
 
         text = text.strip()
 
-        # SAFETY LIMIT
+        # SAFETY LIMIT - truncate if too large
         if len(text) > MAX_INPUT_LENGTH:
-            logger.warning("Input text too large")
-            return {
-                "status": "error",
-                "message": "Input text too large"
-            }
+            logger.warning(f"Input text too large ({len(text)} chars), truncating to {MAX_INPUT_LENGTH}")
+            text = text[:MAX_INPUT_LENGTH]
 
         # SHORT TEXT
         if len(text.split()) <= 25:

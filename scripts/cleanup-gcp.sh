@@ -100,6 +100,7 @@ case "${1:-}" in
         cleanup_firestore
         echo ""
         print_status "All cleanup complete!"
+        echo "NOTE: Restart containers after cleanup: docker compose restart"
         ;;
     --local)
         cleanup_local
@@ -121,6 +122,7 @@ case "${1:-}" in
         cleanup_firestore
         echo ""
         print_status "All cleanup complete!"
+        echo "NOTE: Restart containers after cleanup: docker compose restart"
         ;;
     *)
         print_error "Unknown option: $1"
