@@ -1,31 +1,31 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: v2ai-backend
+  name: v2ai-ml-pipeline
   namespace: v2ai
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: v2ai-backend
+      app: v2ai-ml-pipeline
   template:
     metadata:
       labels:
-        app: v2ai-backend
+        app: v2ai-ml-pipeline
     spec:
       containers:
-      - name: backend
-        image: gcr.io/v2aicloud/v2ai-backend:latest
+      - name: ml-pipeline
+        image: gcr.io/v2aicloud/v2ai-ml-pipeline:latest
         imagePullPolicy: Always
         ports:
-        - containerPort: 8000
+        - containerPort: 8001
         resources:
           requests:
-            memory: "512Mi"
-            cpu: "250m"
+            memory: "2Gi"
+            cpu: "1000m"
           limits:
-            memory: "1Gi"
-            cpu: "500m"
+            memory: "4Gi"
+            cpu: "2000m"
         envFrom:
         - configMapRef:
             name: v2ai-config
@@ -38,23 +38,25 @@ spec:
         - name: gcp-creds
           mountPath: /secrets
           readOnly: true
-        - name: uploads
-          mountPath: /app/uploads
+        - name: model-cache
+          mountPath: /models
         livenessProbe:
           httpGet:
             path: /health
-            port: 8000
-          initialDelaySeconds: 10
+            port: 8001
+          initialDelaySeconds: 60
           periodSeconds: 30
+          timeoutSeconds: 10
         readinessProbe:
           httpGet:
             path: /health
-            port: 8000
-          initialDelaySeconds: 5
+            port: 8001
+          initialDelaySeconds: 30
           periodSeconds: 10
+          timeoutSeconds: 10
       volumes:
       - name: gcp-creds
         secret:
           secretName: gcp-credentials
-      - name: uploads
+      - name: model-cache
         emptyDir: {}

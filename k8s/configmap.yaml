@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: v2ai-config
+  namespace: v2ai
+data:
+  GCP_PROJECT_ID: "v2aicloud"
+  GCS_BUCKET_NAME: "v2aibucket"
+  GCS_KEY_PATH: "/secrets/gcp-key.json"
+  FIRESTORE_DB_NAME: "v2aidb"
+  FIRESTORE_DATABASE: "v2aidb"
+  FIRESTORE_COLLECTION: "videos"
+  ML_PIPELINE_URL: "http://ml-pipeline-service:8001"
+  TRANSFORMERS_CACHE: "/models"
+  LOG_LEVEL: "INFO"
