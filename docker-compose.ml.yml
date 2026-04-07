@@ -1,0 +1,34 @@
+version: "3.8"
+
+# ML Pipeline-only compose for multi-VM deployment
+# Deploy this on VM-2 and VM-3 (ML VMs)
+
+services:
+  ml_pipeline:
+    build: ./ml_pipeline
+    container_name: v2ai-ml-pipeline
+    ports:
+      - "8001:8001"
+    environment:
+      - TRANSFORMERS_CACHE=/models
+      - HF_HOME=/models
+      - CUDA_VISIBLE_DEVICES=
+    volumes:
+      - models_cache:/models
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+        reservations:
+          memory: 4G
+
+volumes:
+  models_cache:
+    driver: local
