@@ -21,11 +21,13 @@ spec:
         - containerPort: 8001
         resources:
           requests:
-            memory: "2Gi"
-            cpu: "1000m"
-          limits:
             memory: "4Gi"
+            cpu: "1000m"
+            ephemeral-storage: "4Gi"
+          limits:
+            memory: "8Gi"
             cpu: "2000m"
+            ephemeral-storage: "8Gi"
         envFrom:
         - configMapRef:
             name: v2ai-config
@@ -44,16 +46,18 @@ spec:
           httpGet:
             path: /health
             port: 8001
-          initialDelaySeconds: 60
+          initialDelaySeconds: 120
           periodSeconds: 30
           timeoutSeconds: 10
+          failureThreshold: 5
         readinessProbe:
           httpGet:
             path: /health
             port: 8001
-          initialDelaySeconds: 30
+          initialDelaySeconds: 60
           periodSeconds: 10
           timeoutSeconds: 10
+          failureThreshold: 6
       volumes:
       - name: gcp-creds
         secret:
