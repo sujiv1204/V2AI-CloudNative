@@ -2,12 +2,34 @@
 
 ## Overview
 
-Your tasks for Day 5-8:
-
-1. **Store ML results in Firestore** (transcript, summary, questions)
+Your tasks for Day 5-6:
+1. **Verify Firestore storage** (transcript, summary, questions already stored!)
 2. **Build a basic web UI** for uploading videos and viewing results
 
 **Important:** Follow these instructions EXACTLY. Do not deviate or add extra complexity.
+
+---
+
+## Live Endpoints (Use These for Testing!)
+
+**Backend API:** `http://35.193.246.44:8000`  
+**ML Pipeline API:** `http://35.193.246.44:8001`
+
+> ⚠️ **No need to run docker-compose locally!** Test your UI against these live endpoints.  
+> See `docs/API_DOCS.md` for full API documentation.
+
+### Quick API Test
+
+```bash
+# Test backend health
+curl http://35.193.246.44:8000/health
+
+# Test upload (replace with your video)
+curl -X POST -F "file=@video.mp4" http://35.193.246.44:8000/upload
+
+# Test status (replace FILE_ID)
+curl http://35.193.246.44:8000/status/FILE_ID
+```
 
 ---
 
@@ -856,12 +878,12 @@ backend/
 
 | Day   | Task                          | Hours |
 | ----- | ----------------------------- | ----- |
-| Day 5 | Setup + Verify Firestore      | 2-3   |
-| Day 5 | Create UI HTML                | 3-4   |
-| Day 6 | Integrate UI with backend     | 2-3   |
-| Day 6 | Test end-to-end               | 2-3   |
-| Day 7 | Polish UI + Fix bugs          | 3-4   |
-| Day 8 | Final testing + Documentation | 2-3   |
+| Day 5 AM | Setup + Clone repo          | 1-2   |
+| Day 5 AM | Create UI HTML              | 2-3   |
+| Day 5 PM | Integrate UI with backend   | 2-3   |
+| Day 5 PM | Test with live endpoint     | 1-2   |
+| Day 6 AM | Polish UI + Fix bugs        | 2-3   |
+| Day 6 PM | Final testing + Screenshots | 2-3   |
 
 ---
 

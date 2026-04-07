@@ -1,4 +1,4 @@
-# V2AI Cloud-Native: Day 5-8 Master Plan
+# V2AI Cloud-Native: Day 5-6 Master Plan
 
 ## Project Overview
 
@@ -10,9 +10,20 @@
 
 ---
 
+## Live Endpoints (Use These for Testing!)
+
+**Backend API:** `http://35.193.246.44:8000`  
+**ML Pipeline API:** `http://35.193.246.44:8001`  
+**Prometheus:** `http://35.193.246.44:9090`
+
+> ⚠️ **C2 and C3:** Use these live endpoints for testing. No need to run docker-compose locally!  
+> See `docs/API_DOCS.md` for full API documentation.
+
+---
+
 ## Team Assignments
 
-| Contributor      | Role                  | Day 5-8 Focus                              |
+| Contributor      | Role                  | Day 5-6 Focus                              |
 | ---------------- | --------------------- | ------------------------------------------ |
 | **C1 (sujiv)**   | Backend & Cloud       | GKE Kubernetes deployment, HPA, metrics    |
 | **C2 (Sagnik)**  | ML Pipeline & UI      | Store results in Firestore, build basic UI |
@@ -58,37 +69,23 @@
 
 ## Day-by-Day Plan
 
-### Day 5: Setup & Parallel Development
+### Day 5: Setup & Core Implementation
 
 | C1 (sujiv)           | C2 (Sagnik)                   | C3 (Harshil)                  |
 | -------------------- | ----------------------------- | ----------------------------- |
-| Create GKE cluster   | Store ML results in Firestore | Create 3 VMs                  |
-| Push images to GCR   | Test Firestore integration    | Install Docker on all VMs     |
-| Create K8s manifests | Start basic UI (upload page)  | Configure inter-VM networking |
+| Create GKE cluster   | Verify Firestore storage      | Create 2 additional VMs       |
+| Push images to GCR   | Build basic UI (upload page)  | Install Docker on new VMs     |
+| Create K8s manifests | Add status/results UI pages   | Configure inter-VM networking |
+| Deploy to GKE        | Connect UI to live backend    | Deploy ML Pipeline on new VMs |
 
-### Day 6: Core Implementation
+### Day 6: Testing, Benchmarking & Analysis
 
-| C1 (sujiv)       | C2 (Sagnik)                 | C3 (Harshil)                |
-| ---------------- | --------------------------- | --------------------------- |
-| Deploy to GKE    | Complete Firestore storage  | Deploy services across VMs  |
-| Configure HPA    | Add status/results UI pages | Test inter-VM communication |
-| Test autoscaling | Connect UI to backend API   | Document deployment process |
-
-### Day 7: Testing & Optimization
-
-| C1 (sujiv)              | C2 (Sagnik)        | C3 (Harshil)             |
-| ----------------------- | ------------------ | ------------------------ |
-| Tune resource limits    | Polish UI          | Prepare Locust scripts   |
-| Debug any K8s issues    | Fix any UI bugs    | Run baseline load tests  |
-| Setup Prometheus in K8s | Add loading states | Collect multi-VM metrics |
-
-### Day 8: Benchmarking & Analysis
-
-| C1 (sujiv)          | C2 (Sagnik)        | C3 (Harshil)              |
-| ------------------- | ------------------ | ------------------------- |
-| Run K8s load tests  | Final UI testing   | Run multi-VM load tests   |
-| Collect K8s metrics | Create screenshots | Compare VM vs K8s results |
-| Grafana dashboards  | Document UI usage  | Generate benchmark report |
+| C1 (sujiv)               | C2 (Sagnik)             | C3 (Harshil)              |
+| ------------------------ | ----------------------- | ------------------------- |
+| Configure HPA            | Polish UI, fix bugs     | Prepare Locust scripts    |
+| Test autoscaling         | Test with live endpoint | Run multi-VM load tests   |
+| Run K8s load tests       | Document UI usage       | Collect metrics           |
+| Setup Prometheus/Grafana | Create screenshots      | Compare VM vs K8s results |
 
 ---
 

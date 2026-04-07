@@ -2,14 +2,38 @@
 
 ## Overview
 
-Your tasks for Day 5-8:
-
-1. **Deploy V2AI across multiple GCP VMs** (3 VMs)
+Your tasks for Day 5-6:
+1. **Create 2 additional VMs** for ML Pipeline (VM-1 backend already exists!)
 2. **Configure load balancing** between ML Pipeline instances
 3. **Create Locust load testing scripts**
 4. **Collect baseline performance metrics**
 
 **Important:** Follow these instructions EXACTLY. Test each step before moving to the next.
+
+---
+
+## Existing Resources (Day 4)
+
+**VM-1 (Backend) already running:**
+- Name: `v2ai-vm-1`
+- External IP: `35.193.246.44`
+- Ports: 8000 (backend), 8001 (ML), 9090 (Prometheus)
+
+> ⚠️ **Do NOT delete or modify v2ai-vm-1!** C2 is using it for UI development.  
+> You'll create 2 NEW VMs for additional ML Pipeline instances.
+
+### Test Existing Deployment
+
+```bash
+# Test backend
+curl http://35.193.246.44:8000/health
+
+# Test ML pipeline
+curl http://35.193.246.44:8001/health
+
+# Test full pipeline (optional)
+curl -X POST -F "file=@video.mp4" http://35.193.246.44:8000/upload
+```
 
 ---
 
@@ -52,9 +76,9 @@ If you get permission denied, contact C1 to grant you these roles:
                          Internet
                              │
                     ┌────────▼────────┐
-                    │  Public IP:8000 │
-                    │     VM-1        │
-                    │    Backend      │
+                    │  35.193.246.44  │
+                    │     VM-1        │  ← Already exists!
+                    │  Backend+ML     │
                     └────────┬────────┘
                              │
               ┌──────────────┼──────────────┐
@@ -62,7 +86,7 @@ If you get permission denied, contact C1 to grant you these roles:
      ┌────────▼────────┐    │     ┌────────▼────────┐
      │   VM-2 :8001    │    │     │   VM-3 :8001    │
      │   ML Pipeline   │    │     │   ML Pipeline   │
-     │   (Primary)     │    │     │   (Replica)     │
+     │   (NEW)         │    │     │   (NEW)         │
      └────────┬────────┘    │     └────────┬────────┘
               │              │              │
               └──────────────┼──────────────┘
@@ -74,11 +98,11 @@ If you get permission denied, contact C1 to grant you these roles:
 
 **VM Configuration:**
 
-| VM   | Name         | Purpose     | Ports           |
-| ---- | ------------ | ----------- | --------------- |
-| VM-1 | v2ai-backend | Backend API | 8000 (public)   |
-| VM-2 | v2ai-ml-1    | ML Pipeline | 8001 (internal) |
-| VM-3 | v2ai-ml-2    | ML Pipeline | 8001 (internal) |
+| VM   | Name         | Purpose     | Status          | Ports           |
+| ---- | ------------ | ----------- | --------------- | --------------- |
+| VM-1 | v2ai-vm-1    | Backend+ML  | ✅ EXISTS       | 8000, 8001      |
+| VM-2 | v2ai-ml-1    | ML Pipeline | 🆕 CREATE       | 8001 (internal) |
+| VM-3 | v2ai-ml-2    | ML Pipeline | 🆕 CREATE       | 8001 (internal) |
 
 ---
 
@@ -106,53 +130,23 @@ cp ~/Downloads/.env .
 ls -la gcp-key.json .env
 ```
 
-### Step 1.2: Test Locally First
-
-Before deploying to VMs, verify everything works locally:
+### Step 1.2: Test Against Live Endpoint (No Local Docker Needed!)
 
 ```bash
-# Build and start containers
-docker-compose up -d --build
-
-# Wait for startup
-sleep 30
-
-# Test health endpoints
-curl http://localhost:8000/health
-curl http://localhost:8001/health
-
-# If both return {"status":"ok"}, you're good
-docker-compose down
+# Test existing deployment
+curl http://35.193.246.44:8000/health
+curl http://35.193.246.44:8001/health
 ```
+
+Both should return `{"status":"ok"}`. If yes, you're ready to create new VMs.
 
 ---
 
-## Part 2: Create GCP VMs
+## Part 2: Create Additional ML VMs
 
-### Step 2.1: Create VM-1 (Backend)
+> ⚠️ **VM-1 (v2ai-vm-1) already exists!** Skip creating it. Only create VM-2 and VM-3.
 
-```bash
-gcloud compute instances create v2ai-backend \
-  --project=v2aicloud \
-  --zone=us-central1-a \
-  --machine-type=e2-medium \
-  --boot-disk-size=30GB \
-  --image-family=ubuntu-2204-lts \
-  --image-project=ubuntu-os-cloud \
-  --tags=v2ai-backend
-```
-
-**Expected output:**
-
-```
-Created [.../v2ai-backend].
-NAME          ZONE           MACHINE_TYPE  INTERNAL_IP  EXTERNAL_IP     STATUS
-v2ai-backend  us-central1-a  e2-medium     10.128.0.X   35.XXX.XXX.XXX  RUNNING
-```
-
-**Save the EXTERNAL_IP** - you'll need it later.
-
-### Step 2.2: Create VM-2 (ML Pipeline Primary)
+### Step 2.1: Create VM-2 (ML Pipeline)
 
 ```bash
 gcloud compute instances create v2ai-ml-1 \
@@ -169,7 +163,7 @@ gcloud compute instances create v2ai-ml-1 \
 
 **Save the INTERNAL_IP** - the backend will use this.
 
-### Step 2.3: Create VM-3 (ML Pipeline Replica)
+### Step 2.2: Create VM-3 (ML Pipeline)
 
 ```bash
 gcloud compute instances create v2ai-ml-2 \
@@ -182,7 +176,7 @@ gcloud compute instances create v2ai-ml-2 \
   --tags=v2ai-ml
 ```
 
-### Step 2.4: Verify VMs Created
+### Step 2.3: Verify All VMs
 
 ```bash
 gcloud compute instances list --project=v2aicloud
@@ -192,17 +186,17 @@ gcloud compute instances list --project=v2aicloud
 
 ```
 NAME          ZONE           MACHINE_TYPE    INTERNAL_IP  EXTERNAL_IP     STATUS
-v2ai-backend  us-central1-a  e2-medium       10.128.0.2   35.193.XXX.XXX  RUNNING
-v2ai-ml-1     us-central1-a  e2-standard-2   10.128.0.3   35.XXX.XXX.XXX  RUNNING
-v2ai-ml-2     us-central1-a  e2-standard-2   10.128.0.4   35.XXX.XXX.XXX  RUNNING
+v2ai-vm-1     us-central1-a  e2-medium       10.128.0.2   35.193.246.44   RUNNING  ← Existing
+v2ai-ml-1     us-central1-a  e2-standard-2   10.128.0.X   35.XXX.XXX.XXX  RUNNING  ← New
+v2ai-ml-2     us-central1-a  e2-standard-2   10.128.0.Y   35.XXX.XXX.XXX  RUNNING  ← New
 ```
 
 **Record these IPs:**
 
-- VM-1 (v2ai-backend) External IP: ****\_\_\_\_****
-- VM-1 (v2ai-backend) Internal IP: ****\_\_\_\_****
-- VM-2 (v2ai-ml-1) Internal IP: ****\_\_\_\_****
-- VM-3 (v2ai-ml-2) Internal IP: ****\_\_\_\_****
+- VM-1 (v2ai-vm-1) External IP: `35.193.246.44` (already known)
+- VM-1 (v2ai-vm-1) Internal IP: ____________
+- VM-2 (v2ai-ml-1) Internal IP: ____________
+- VM-3 (v2ai-ml-2) Internal IP: ____________
 
 ---
 
@@ -869,14 +863,13 @@ gcloud compute firewall-rules delete v2ai-backend-external v2ai-ml-internal \
 
 | Day   | Task                          | Hours |
 | ----- | ----------------------------- | ----- |
-| Day 5 | Create 3 VMs, install Docker  | 3-4   |
-| Day 5 | Configure firewall rules      | 1-2   |
-| Day 6 | Deploy services to VMs        | 3-4   |
-| Day 6 | Verify inter-VM communication | 2-3   |
-| Day 7 | Create Locust tests           | 2-3   |
-| Day 7 | Run baseline tests            | 2-3   |
-| Day 8 | Collect final metrics         | 2-3   |
-| Day 8 | Document results              | 2-3   |
+| Day 5 AM | Create 2 new VMs, install Docker | 2-3   |
+| Day 5 AM | Configure firewall rules      | 1-2   |
+| Day 5 PM | Deploy ML Pipeline to new VMs | 2-3   |
+| Day 5 PM | Test inter-VM communication   | 1-2   |
+| Day 6 AM | Create Locust scripts         | 2-3   |
+| Day 6 AM | Run load tests                | 2-3   |
+| Day 6 PM | Collect metrics & document    | 2-3   |
 
 ---
 
