@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>V2AI - Smart Video AI</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<!-- jsPDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+body {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    min-height: 100vh;
+}
+
+.card {
+    border-radius: 15px;
+    animation: fadeIn 0.6s ease;
+}
+
+@keyframes fadeIn {
+    from {opacity: 0; transform: translateY(20px);}
+    to {opacity: 1; transform: translateY(0);}
+}
+
+.upload-box {
+    border: 2px dashed white;
+    padding: 30px;
+    text-align: center;
+    cursor: pointer;
+}
+
+.upload-box:hover {
+    background: rgba(255,255,255,0.1);
+}
+
+.progress {
+    height: 8px;
+}
+
+.result-box {
+    background: #f8f9fa;
+    color: black;
+    padding: 15px;
+    border-radius: 10px;
+}
+
+.hidden {
+    display: none;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container py-5">
+
+<h1 class="text-center mb-4">🎬 V2AI Smart Pipeline</h1>
+
+<!-- Upload -->
+<div class="card p-4 mb-4">
+
+    <div class="upload-box" onclick="fileInput.click()">
+        <h5>📤 Click or Drag Video</h5>
+        <p id="fileName">No file selected</p>
+        <small id="fileSize"></small>
+    </div>
+
+    <input type="file" id="fileInput" hidden accept="video/*">
+
+    <button id="uploadBtn" class="btn btn-primary w-100 mt-3" onclick="uploadFile()">
+        Upload & Process
+    </button>
+
+</div>
+
+<!-- Status -->
+<div class="card p-4 mb-4 hidden" id="statusCard">
+    <h5 id="statusText">Uploading...</h5>
+    <div class="progress mt-2">
+        <div id="progressBar" class="progress-bar"></div>
+    </div>
+</div>
+
+<!-- Results -->
+<div id="results" class="hidden">
+
+    <div class="card p-4 mb-3">
+        <h5>📝 Transcript</h5>
+        <div id="transcript" class="result-box"></div>
+    </div>
+
+    <div class="card p-4 mb-3">
+        <h5>📄 Summary</h5>
+        <div id="summary" class="result-box"></div>
+    </div>
+
+    <div class="card p-4">
+        <h5>❓ Questions</h5>
+        <ul id="questions"></ul>
+    </div>
+
+    <!-- Buttons -->
+    <div class="text-center mt-4">
+        <button class="btn btn-success" onclick="downloadPDF()">📄 Download PDF</button>
+        <button class="btn btn-secondary ms-2" onclick="location.reload()">🔄 Upload Another</button>
+    </div>
+
+</div>
+
+</div>
+
+<script>
+
+let fileId = null;
+let fileInput = document.getElementById("fileInput");
+let uploadBtn = document.getElementById("uploadBtn");
+
+// Show file name + size
+fileInput.addEventListener("change", () => {
+    const file = fileInput.files[0];
+    if (file) {
+        document.getElementById("fileName").innerText = file.name;
+        document.getElementById("fileSize").innerText =
+            (file.size / (1024*1024)).toFixed(2) + " MB";
+    }
+});
+
+async function uploadFile() {
+
+    const file = fileInput.files[0];
+
+    if (!file) {
+        alert("Select a file first");
+        return;
+    }
+
+    uploadBtn.disabled = true;
+
+    document.getElementById("statusCard").classList.remove("hidden");
+    updateStatus("Uploading video...", 10);
+
+    try {
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await fetch("/upload", {
+            method: "POST",
+            body: formData
+        });
+
+        const data = await res.json();
+
+        if (!data.file_id) throw new Error("Upload failed");
+
+        fileId = data.file_id;
+
+        updateStatus("Processing started (1–3 mins)...", 30);
+
+        pollStatus(fileId);
+
+    } catch (err) {
+        showError(err.message);
+    }
+}
+
+async function pollStatus(fileId) {
+
+    try {
+
+        const res = await fetch(`/status/${fileId}`);
+        const data = await res.json();
+
+        if (data.status === "processed") {
+
+            updateStatus("✅ Processing Completed Successfully", 100);
+
+            document.getElementById("results").classList.remove("hidden");
+
+            document.getElementById("transcript").innerText =
+                data.ml_results?.transcript?.text || "No transcript";
+
+            document.getElementById("summary").innerText =
+                data.ml_results?.summary?.text || "No summary";
+
+            const questions = data.ml_results?.questions?.questions || [];
+            const qList = document.getElementById("questions");
+            qList.innerHTML = "";
+
+            if (questions.length === 0) {
+                qList.innerHTML = "<li>No questions generated</li>";
+            } else {
+                questions.forEach(q => {
+                    const li = document.createElement("li");
+                    li.innerText = q;
+                    qList.appendChild(li);
+                });
+            }
+
+            uploadBtn.disabled = false;
+            return;
+        }
+
+        updateStatus("Processing...", Math.min(90, Math.random()*80 + 20));
+
+        setTimeout(() => pollStatus(fileId), 2000);
+
+    } catch (err) {
+        showError("Error fetching status");
+    }
+}
+
+function updateStatus(text, progress) {
+    document.getElementById("statusText").innerText = text;
+    document.getElementById("progressBar").style.width = progress + "%";
+}
+
+function showError(msg) {
+    document.getElementById("statusText").innerText = "❌ " + msg;
+    uploadBtn.disabled = false;
+}
+
+// ✅ PDF Download
+function downloadPDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    const transcript = document.getElementById("transcript").innerText;
+    const summary = document.getElementById("summary").innerText;
+    const questions = Array.from(document.querySelectorAll("#questions li"))
+        .map(li => li.innerText)
+        .join("\n");
+
+    let y = 10;
+
+    doc.setFontSize(16);
+    doc.text("V2AI Report", 10, y);
+
+    y += 10;
+    doc.setFontSize(12);
+
+    doc.text("Transcript:", 10, y);
+    y += 8;
+    doc.text(doc.splitTextToSize(transcript, 180), 10, y);
+
+    y += 50;
+    doc.text("Summary:", 10, y);
+    y += 8;
+    doc.text(doc.splitTextToSize(summary, 180), 10, y);
+
+    y += 50;
+    doc.text("Questions:", 10, y);
+    y += 8;
+    doc.text(doc.splitTextToSize(questions, 180), 10, y);
+
+    doc.save("V2AI_Report.pdf");
+}
+
+</script>
+
+</body>
+</html>
