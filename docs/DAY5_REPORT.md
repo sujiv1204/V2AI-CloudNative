@@ -2,161 +2,163 @@
 
 ## Summary
 
-Successfully deployed the V2AI pipeline to Google Kubernetes Engine (GKE) using Autopilot mode. The full end-to-end pipeline is working with video upload, transcription, summarization, and question generation.
+Successfully deployed the V2AI pipeline to Google Kubernetes Engine (GKE) using Autopilot mode. After debugging OOM and storage issues, the full end-to-end pipeline is working with video upload, transcription, summarization, and question generation.
 
 ## GKE Cluster Details
 
-| Property     | Value            |
-| ------------ | ---------------- |
-| Cluster Name | `v2ai-cluster`   |
-| Type         | GKE Autopilot    |
-| Region       | `us-central1`    |
-| Project      | `v2aicloud`      |
-| External IP  | `35.222.254.140` |
+| Property | Value |
+|----------|-------|
+| Cluster Name | `v2ai-cluster` |
+| Type | GKE Autopilot |
+| Region | `us-central1` |
+| Project | `v2aicloud` |
+| External IP | `35.222.254.140` |
 
-## Deployment Configuration
+## Deployment Steps
 
-### Images (pushed to GCR)
-
-- `gcr.io/v2aicloud/v2ai-backend:latest`
-- `gcr.io/v2aicloud/v2ai-ml-pipeline:latest`
-
-### Pods Running
-
-| Component   | Replicas | CPU Request | Memory Request |
-| ----------- | -------- | ----------- | -------------- |
-| Backend     | 2        | 250m        | 512Mi          |
-| ML Pipeline | 2-4      | 1000m       | 2Gi            |
-
-### Services
-
-| Service             | Type         | Port    | External Access       |
-| ------------------- | ------------ | ------- | --------------------- |
-| v2ai-backend        | LoadBalancer | 80→8000 | http://35.222.254.140 |
-| ml-pipeline-service | ClusterIP    | 8001    | Internal only         |
-
-### Horizontal Pod Autoscaler (HPA)
-
-| Component   | Min | Max | Target CPU |
-| ----------- | --- | --- | ---------- |
-| Backend     | 2   | 5   | 70%        |
-| ML Pipeline | 2   | 4   | 70%        |
-
-## API Endpoints (GKE)
-
-### Health Check
-
+### Step 1: Enable APIs
 ```bash
-curl http://35.222.254.140/health
-# {"status":"ok"}
+gcloud services enable container.googleapis.com containerregistry.googleapis.com --project=v2aicloud
 ```
 
-### Upload Video
-
+### Step 2: Push Images to GCR
 ```bash
-curl -X POST http://35.222.254.140/upload \
-  -F "file=@lecture.mp4"
+gcloud auth configure-docker --quiet
+docker tag v2ai-cloudnative-backend:latest gcr.io/v2aicloud/v2ai-backend:latest
+docker tag v2ai-cloudnative-ml_pipeline:latest gcr.io/v2aicloud/v2ai-ml-pipeline:latest
+docker push gcr.io/v2aicloud/v2ai-backend:latest
+docker push gcr.io/v2aicloud/v2ai-ml-pipeline:latest
 ```
 
-### Check Status
-
+### Step 3: Create GKE Cluster
 ```bash
-curl http://35.222.254.140/status/{file_id}
+# Standard cluster failed due to zonal stockouts - used Autopilot instead
+gcloud container clusters create-auto v2ai-cluster --project=v2aicloud --region=us-central1
+```
+
+### Step 4: Deploy to Kubernetes
+```bash
+export USE_GKE_GCLOUD_AUTH_PLUGIN=True
+gcloud container clusters get-credentials v2ai-cluster --region=us-central1 --project=v2aicloud
+
+kubectl apply -f k8s/namespace.yaml
+kubectl create secret generic gcp-credentials --from-file=gcp-key.json=./gcp-key.json -n v2ai
+kubectl apply -f k8s/
+```
+
+## Issues Encountered and Fixes
+
+### Issue 1: Zonal Stockouts
+**Problem**: Standard GKE cluster failed in us-central1-a, us-central1-b due to e2-standard-2 stockouts.
+**Solution**: Used GKE Autopilot which handles resource allocation automatically.
+
+### Issue 2: Missing ConfigMap Values  
+**Problem**: Backend pods crashed - missing `GCP_PROJECT_ID` and `GCS_KEY_PATH`.
+**Solution**: Updated `k8s/configmap.yaml` with all required environment variables.
+
+### Issue 3: Ephemeral Storage Exceeded
+**Problem**: ML pods evicted - model downloads exceeded 1Gi storage limit.
+```
+Warning  Evicted  Pod ephemeral local storage usage exceeds the total limit of containers 1Gi.
+```
+**Solution**: Increased ephemeral-storage to 4Gi request / 8Gi limit.
+
+### Issue 4: Models Loading Mid-Request (Connection Drops)
+**Problem**: Transcription worked but Summary/QA failed with "Server disconnected" errors. Models were lazy-loaded during requests, causing pods to crash.
+```json
+{"summary": {"message": "Server disconnected without sending a response.", "status": "error"}}
+```
+**Solution**: Added model preloading at startup in `ml_pipeline/main.py`:
+```python
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("=== Preloading ML models at startup ===")
+    await run_in_threadpool(get_whisper_model)  # ~3s
+    await run_in_threadpool(get_summarizer)     # ~14s
+    await run_in_threadpool(get_qa_model)       # ~4s
+    logger.info("=== All models preloaded successfully ===")
+    yield
+```
+
+### Issue 5: Readiness Probe Failures
+**Problem**: Pods marked unhealthy before models finished loading (~20 seconds).
+**Solution**: Increased probe delays:
+- `livenessProbe.initialDelaySeconds`: 60 → 120
+- `readinessProbe.initialDelaySeconds`: 30 → 60
+
+## Why Old Pods Showed Completed/Error/ContainerStatusUnknown
+
+Those pods were **remnants from failed deployments** during debugging:
+- `69d669c8b6-*` = Old ReplicaSet (before OOM fix)
+- `7849675c55-*` = New working ReplicaSet (after fix)
+
+They were NOT from HPA scaling. To clean them up:
+```bash
+kubectl delete pods -n v2ai --field-selector=status.phase!=Running
+```
+
+## Final Configuration
+
+### Resource Limits (ML Pipeline)
+```yaml
+resources:
+  requests:
+    memory: "4Gi"
+    cpu: "1000m"
+    ephemeral-storage: "4Gi"
+  limits:
+    memory: "8Gi"
+    cpu: "2000m"
+    ephemeral-storage: "8Gi"
+```
+
+### Final Pod Status
+```
+NAME                                READY   STATUS    AGE
+v2ai-backend-7f4467dccf-2p6dz       1/1     Running   40m
+v2ai-backend-7f4467dccf-crn4v       1/1     Running   40m
+v2ai-ml-pipeline-7849675c55-7b2fj   1/1     Running   42m
+v2ai-ml-pipeline-7849675c55-dzrhj   1/1     Running   43m
 ```
 
 ## End-to-End Test Results
 
-### Test Run
+### Final Test
+```bash
+curl -X POST http://35.222.254.140/upload -F 'file=@lecture.mp4'
+curl http://35.222.254.140/status/{file_id}
+```
 
-- **Video**: lecture.mp4 (49MB)
-- **Upload Time**: Immediate
-- **Total Processing**: ~150 seconds
-- **Status**: ✅ SUCCESS
-
-### Pipeline Timing
-
-| Stage                    | Duration |
-| ------------------------ | -------- |
-| Upload + Audio Extract   | ~5s      |
-| Transcription (Whisper)  | ~73s     |
-| Summarization (BART)     | ~65s     |
-| Question Generation (T5) | ~10s     |
+### Results
+| Stage | Status |
+|-------|--------|
+| Transcription | ✅ Success |
+| Summarization | ✅ Success |
+| Question Generation | ✅ Success |
 
 ### Sample Output
-
 ```json
 {
-    "file_id": "1f132bad-d953-6fdc-84a8-8d101c3e6c8f",
-    "status": "processed",
-    "ml_results": {
-        "transcript": { "status": "success", "text": "5044 chars" },
-        "summary": { "status": "success", "text": "1136 chars" },
-        "questions": { "status": "success", "count": 3 }
-    }
+  "status": "processed",
+  "ml_results": {
+    "transcript": {"status": "success"},
+    "summary": {"status": "success", "text": "Students in our previous lecture..."},
+    "questions": {"status": "success", "questions": ["fats and proteins", "food items which are rich in fat"]}
+  }
 }
 ```
 
-## Challenges & Solutions
+### Processing Time: ~130 seconds total
 
-### 1. Resource Stockout
+## Files Modified
 
-**Problem**: Multiple zones (us-central1-a, us-central1-b, us-east1-b) had e2-standard-2 stockouts.
-**Solution**: Switched to GKE Autopilot which handles resource allocation automatically.
-
-### 2. Missing ConfigMap Values
-
-**Problem**: Backend pods crashed due to missing `GCP_PROJECT_ID` and `GCS_KEY_PATH`.
-**Solution**: Updated configmap.yaml with all required environment variables.
-
-### 3. kubectl Auth Plugin
-
-**Problem**: `gke-gcloud-auth-plugin` not installed locally.
-**Solution**: Installed via `sudo apt-get install google-cloud-cli-gke-gcloud-auth-plugin`
-
-## Files Modified/Created
-
-### New Files
-
-- `k8s/configmap.yaml` - Environment variables
-- `k8s/secret.yaml` - GCP credentials template
-- `k8s/ml-pipeline-deployment.yaml` - ML service deployment
-- `k8s/ml-pipeline-service.yaml` - ML service (ClusterIP)
-
-### Updated Files
-
-- `k8s/backend-deployment.yaml` - Added GCR image, secrets, probes
-- `k8s/hpa.yaml` - Added ML pipeline autoscaler
+| File | Changes |
+|------|---------|
+| `k8s/configmap.yaml` | Added GCP_PROJECT_ID, GCS_KEY_PATH |
+| `k8s/ml-pipeline-deployment.yaml` | Increased storage (8Gi), memory (8Gi), probe delays |
+| `ml_pipeline/main.py` | Added lifespan startup to preload all models |
 
 ## Commands Reference
-
-### Cluster Setup
-
-```bash
-# Create Autopilot cluster
-gcloud container clusters create-auto v2ai-cluster \
-  --project=v2aicloud \
-  --region=us-central1
-
-# Get credentials
-gcloud container clusters get-credentials v2ai-cluster \
-  --region=us-central1 --project=v2aicloud
-```
-
-### Deploy Application
-
-```bash
-# Create namespace
-kubectl apply -f k8s/namespace.yaml
-
-# Create secret from GCP key
-kubectl create secret generic gcp-credentials \
-  --from-file=gcp-key.json=./gcp-key.json -n v2ai
-
-# Deploy all
-kubectl apply -f k8s/
-```
-
-### Monitor
 
 ```bash
 # Check pods
@@ -166,32 +168,16 @@ kubectl get pods -n v2ai
 kubectl get hpa -n v2ai
 
 # View logs
-kubectl logs -f deployment/v2ai-backend -n v2ai
 kubectl logs -f deployment/v2ai-ml-pipeline -n v2ai
+
+# Restart deployment
+kubectl rollout restart deployment/v2ai-ml-pipeline -n v2ai
+
+# Clean up failed pods
+kubectl delete pods -n v2ai --field-selector=status.phase!=Running
 ```
 
-## Cost Considerations
-
-GKE Autopilot charges per-pod resource usage:
-
+## Cost Estimate (Autopilot)
 - Backend: 2 pods × (250m CPU + 512Mi) ≈ $0.05/hr
-- ML Pipeline: 2 pods × (1000m CPU + 2Gi) ≈ $0.20/hr
-- **Estimated**: ~$6/day when running
-
-## Next Steps (Day 6)
-
-1. **Load Testing**: Run Locust tests against GKE endpoint
-2. **Compare**: Benchmark GKE vs Multi-VM Docker Compose
-3. **Prometheus/Grafana**: Set up monitoring stack
-4. **Document**: Performance comparison report
-
-## Comparison: VM vs GKE
-
-| Aspect         | Single VM     | GKE Autopilot   |
-| -------------- | ------------- | --------------- |
-| External IP    | 35.193.246.44 | 35.222.254.140  |
-| Scaling        | Manual        | Automatic (HPA) |
-| Replicas       | 1 each        | 2+ each         |
-| Load Balancing | None          | Built-in        |
-| Cost           | ~$1/day       | ~$6/day         |
-| Setup Time     | 30 min        | 45 min          |
+- ML Pipeline: 2 pods × (1000m CPU + 4Gi) ≈ $0.40/hr
+- **Total**: ~$10-12/day when running
