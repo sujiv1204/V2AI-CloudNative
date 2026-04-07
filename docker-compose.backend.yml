@@ -1,0 +1,30 @@
+version: "3.8"
+
+# Backend-only compose for multi-VM deployment
+# Deploy this on VM-1 (Backend VM)
+
+services:
+  backend:
+    build: ./backend
+    container_name: v2ai-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - ML_PIPELINE_URL=${ML_PIPELINE_URL}
+      - ML_PIPELINE_URLS=${ML_PIPELINE_URLS:-}
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID}
+      - GCS_BUCKET_NAME=${GCS_BUCKET_NAME}
+      - GCS_KEY_PATH=/app/gcp-key.json
+      - FIRESTORE_DB_NAME=${FIRESTORE_DB_NAME}
+      - FIRESTORE_COLLECTION=${FIRESTORE_COLLECTION}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./gcp-key.json:/app/gcp-key.json:ro
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
