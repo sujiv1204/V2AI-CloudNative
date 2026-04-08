@@ -5,10 +5,11 @@ from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
+from contextlib import asynccontextmanager
 
-from services.transcription import transcribe_audio
-from services.summarization import summarize_text
-from services.qa import generate_questions
+from services.transcription import transcribe_audio, get_whisper_model
+from services.summarization import summarize_text, get_summarizer
+from services.qa import generate_questions, get_qa_model
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -16,7 +17,32 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="V2AI ML Pipeline")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Preload all models at startup."""
+    logger.info("=== Preloading ML models at startup ===")
+    try:
+        logger.info("Loading Whisper model...")
+        await run_in_threadpool(get_whisper_model)
+        logger.info("Whisper model loaded")
+        
+        logger.info("Loading BART summarization model...")
+        await run_in_threadpool(get_summarizer)
+        logger.info("BART model loaded")
+        
+        logger.info("Loading T5 QA model...")
+        await run_in_threadpool(get_qa_model)
+        logger.info("T5 model loaded")
+        
+        logger.info("=== All models preloaded successfully ===")
+    except Exception as e:
+        logger.error(f"Model preloading failed: {e}")
+    yield
+    logger.info("Shutting down ML Pipeline")
+
+
+app = FastAPI(title="V2AI ML Pipeline", lifespan=lifespan)
 
 
 class TextRequest(BaseModel):

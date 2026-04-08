@@ -11,6 +11,12 @@ import httpx
 from config import settings
 from audio_service import extract_audio
 from gcp_service import upload_to_gcs, store_metadata
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
+from fastapi import Request
+
+templates = Jinja2Templates(directory="templates")
+
 
 logging.basicConfig(level=settings.log_level)
 logger = logging.getLogger(__name__)
@@ -24,6 +30,13 @@ AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 ML_PIPELINE_URL = os.getenv("ML_PIPELINE_URL", "http://ml_pipeline:8001")
 TIMEOUT = 300.0
+
+
+
+
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
 
 
 @app.get("/health")
@@ -128,10 +141,16 @@ async def upload_video(file: UploadFile = File(...), background_tasks: Backgroun
         contents = await file.read()
         with open(video_path, "wb") as f:
             f.write(contents)
+        if not os.path.exists(video_path):
+            raise Exception("Video file not saved properly")
         logger.info(f"Video saved: {video_path}")
 
         audio_path = AUDIO_DIR / f"{file_id}.wav"
-        extract_audio(str(video_path), str(audio_path))
+        try:
+            extract_audio(str(video_path), str(audio_path))
+        except Exception as e:
+            logger.error(f"Audio extraction failed: {str(e)}")
+            raise Exception("FFmpeg error: Make sure FFmpeg is installed and in PATH")
         logger.info(f"Audio extracted: {audio_path}")
 
         audio_gcs_path = upload_to_gcs(str(audio_path), f"audio/{file_id}.wav")

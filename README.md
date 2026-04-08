@@ -21,10 +21,23 @@ Scalable lecture video understanding as a service - an end-to-end ML inference p
 │   │   └── qa.py             # T5 question generation (C3)
 │   ├── Dockerfile
 │   └── requirements.txt
+├── k8s/                  # Kubernetes manifests (Day 5)
+│   ├── namespace.yaml
+│   ├── configmap.yaml
+│   ├── secret.yaml
+│   ├── backend-deployment.yaml
+│   ├── backend-service.yaml
+│   ├── ml-pipeline-deployment.yaml
+│   ├── ml-pipeline-service.yaml
+│   └── hpa.yaml
 ├── scripts/              # Utility scripts
-│   └── cleanup-gcp.sh    # Clean GCS, Firestore, local uploads
+│   ├── cleanup-gcp.sh
+│   └── day5-gke-deployment.sh
 ├── monitoring/           # Prometheus config
 │   └── prometheus.yml
+├── docs/                 # Documentation
+│   ├── DAY5_REPORT.md
+│   └── ...
 ├── docker-compose.yml    # Local dev orchestration
 ├── test-integration.sh   # End-to-end pipeline test
 └── .env.example          # Environment variables template
@@ -109,6 +122,56 @@ docker compose up -d
 - Summarization: ~30-40s (BART with chunking)
 - QA Generation: ~5-10s (T5-small)
 - Total pipeline: ~60-90s
+
+## Day 4: Single VM Deployment
+
+Deployed full pipeline to GCE VM for baseline testing.
+
+| Resource | Value |
+|----------|-------|
+| VM | v2ai-vm-1 (e2-medium) |
+| Zone | us-central1-a |
+| External IP | 35.193.246.44 |
+
+```bash
+# Test VM deployment
+curl http://35.193.246.44:8000/health
+curl -X POST http://35.193.246.44:8000/upload -F 'file=@lecture.mp4'
+```
+
+## Day 5: GKE Deployment
+
+Deployed to GKE Autopilot for auto-scaling and load balancing.
+
+| Resource | Value |
+|----------|-------|
+| Cluster | v2ai-cluster (Autopilot) |
+| Region | us-central1 |
+| External IP | 35.222.254.140 |
+
+### GKE Quick Start
+```bash
+# Get cluster credentials
+gcloud container clusters get-credentials v2ai-cluster --region=us-central1 --project=v2aicloud
+
+# Deploy
+kubectl apply -f k8s/
+
+# Check pods
+kubectl get pods -n v2ai
+
+# Test
+curl http://35.222.254.140/health
+curl -X POST http://35.222.254.140/upload -F 'file=@lecture.mp4'
+curl http://35.222.254.140/status/{file_id}
+```
+
+### GKE Components
+- **Backend**: 2 replicas, LoadBalancer on port 80
+- **ML Pipeline**: 2-4 replicas (HPA), ClusterIP internal
+- **HPA**: Auto-scales at 70% CPU
+
+See `scripts/day5-gke-deployment.sh` for full deployment steps and `docs/DAY5_REPORT.md` for details.
 
 ## Development Notes
 

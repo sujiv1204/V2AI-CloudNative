@@ -5,7 +5,7 @@
 
 set -e
 
-BACKEND_URL="${BACKEND_URL:-http://localhost:8000}"
+BACKEND_URL="${BACKEND_URL:-http://35.222.254.140}"
 VIDEO_FILE="${VIDEO_FILE:-lecture.mp4}"
 MAX_WAIT=300
 POLL_INTERVAL=10
