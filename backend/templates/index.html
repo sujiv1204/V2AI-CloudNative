@@ -1,267 +1,297 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<title>V2AI - Smart Video AI</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="UTF-8">
+    <title>V2AI - Smart Video AI</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
-<!-- jsPDF -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- jsPDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
-<style>
-body {
-    background: linear-gradient(135deg, #667eea, #764ba2);
-    color: white;
-    min-height: 100vh;
-}
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            min-height: 100vh;
+        }
 
-.card {
-    border-radius: 15px;
-    animation: fadeIn 0.6s ease;
-}
+        .card {
+            border-radius: 15px;
+            animation: fadeIn 0.6s ease;
+        }
 
-@keyframes fadeIn {
-    from {opacity: 0; transform: translateY(20px);}
-    to {opacity: 1; transform: translateY(0);}
-}
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
 
-.upload-box {
-    border: 2px dashed white;
-    padding: 30px;
-    text-align: center;
-    cursor: pointer;
-}
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
 
-.upload-box:hover {
-    background: rgba(255,255,255,0.1);
-}
+        .upload-box {
+            border: 2px dashed white;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+        }
 
-.progress {
-    height: 8px;
-}
+        .upload-box:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
 
-.result-box {
-    background: #f8f9fa;
-    color: black;
-    padding: 15px;
-    border-radius: 10px;
-}
+        .progress {
+            height: 8px;
+        }
 
-.hidden {
-    display: none;
-}
-</style>
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+
+        .result-box {
+            background: #f8f9fa;
+            color: black;
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
 </head>
 
 <body>
 
-<div class="container py-5">
+    <div class="container py-5">
 
-<h1 class="text-center mb-4">🎬 V2AI Smart Pipeline</h1>
+        <h1 class="text-center mb-4">V2AI Smart Pipeline</h1>
 
-<!-- Upload -->
-<div class="card p-4 mb-4">
+        <!-- Upload -->
+        <div class="card p-4 mb-4">
 
-    <div class="upload-box" onclick="fileInput.click()">
-        <h5>📤 Click or Drag Video</h5>
-        <p id="fileName">No file selected</p>
-        <small id="fileSize"></small>
+            <div class="upload-box" onclick="fileInput.click()">
+                <h5>Click or Drag Video</h5>
+                <p id="fileName">No file selected</p>
+                <small id="fileSize"></small>
+            </div>
+
+            <input type="file" id="fileInput" hidden accept="video/*">
+
+            <button id="uploadBtn" class="btn btn-primary w-100 mt-3" onclick="uploadFile()">
+                Upload & Process
+            </button>
+
+        </div>
+
+        <!-- Status -->
+        <div class="card p-4 mb-4 hidden" id="statusCard">
+            <h5 id="statusText">Uploading...</h5>
+            <div class="progress mt-2">
+                <div id="progressBar" class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0"
+                    aria-valuemax="100"></div>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div id="results" class="hidden">
+
+            <div class="card p-4 mb-3">
+                <h5>Transcript</h5>
+                <div id="transcript" class="result-box"></div>
+            </div>
+
+            <div class="card p-4 mb-3">
+                <h5>Summary</h5>
+                <div id="summary" class="result-box"></div>
+            </div>
+
+            <div class="card p-4">
+                <h5>Questions</h5>
+                <ul id="questions"></ul>
+            </div>
+
+            <!-- Buttons -->
+            <div class="text-center mt-4">
+                <button class="btn btn-success" onclick="downloadPDF()">Download PDF</button>
+                <button class="btn btn-secondary ms-2" onclick="location.reload()">Upload Another</button>
+            </div>
+
+        </div>
+
     </div>
 
-    <input type="file" id="fileInput" hidden accept="video/*">
+    <script>
 
-    <button id="uploadBtn" class="btn btn-primary w-100 mt-3" onclick="uploadFile()">
-        Upload & Process
-    </button>
+        let fileId = null;
+        let fileInput = document.getElementById("fileInput");
+        let uploadBtn = document.getElementById("uploadBtn");
+        let processingStartTime = null;
+        let lastReportedProgress = 0;
 
-</div>
-
-<!-- Status -->
-<div class="card p-4 mb-4 hidden" id="statusCard">
-    <h5 id="statusText">Uploading...</h5>
-    <div class="progress mt-2">
-        <div id="progressBar" class="progress-bar"></div>
-    </div>
-</div>
-
-<!-- Results -->
-<div id="results" class="hidden">
-
-    <div class="card p-4 mb-3">
-        <h5>📝 Transcript</h5>
-        <div id="transcript" class="result-box"></div>
-    </div>
-
-    <div class="card p-4 mb-3">
-        <h5>📄 Summary</h5>
-        <div id="summary" class="result-box"></div>
-    </div>
-
-    <div class="card p-4">
-        <h5>❓ Questions</h5>
-        <ul id="questions"></ul>
-    </div>
-
-    <!-- Buttons -->
-    <div class="text-center mt-4">
-        <button class="btn btn-success" onclick="downloadPDF()">📄 Download PDF</button>
-        <button class="btn btn-secondary ms-2" onclick="location.reload()">🔄 Upload Another</button>
-    </div>
-
-</div>
-
-</div>
-
-<script>
-
-let fileId = null;
-let fileInput = document.getElementById("fileInput");
-let uploadBtn = document.getElementById("uploadBtn");
-
-// Show file name + size
-fileInput.addEventListener("change", () => {
-    const file = fileInput.files[0];
-    if (file) {
-        document.getElementById("fileName").innerText = file.name;
-        document.getElementById("fileSize").innerText =
-            (file.size / (1024*1024)).toFixed(2) + " MB";
-    }
-});
-
-async function uploadFile() {
-
-    const file = fileInput.files[0];
-
-    if (!file) {
-        alert("Select a file first");
-        return;
-    }
-
-    uploadBtn.disabled = true;
-
-    document.getElementById("statusCard").classList.remove("hidden");
-    updateStatus("Uploading video...", 10);
-
-    try {
-
-        const formData = new FormData();
-        formData.append("file", file);
-
-        const res = await fetch("/upload", {
-            method: "POST",
-            body: formData
+        // Show file name + size
+        fileInput.addEventListener("change", () => {
+            const file = fileInput.files[0];
+            if (file) {
+                document.getElementById("fileName").innerText = file.name;
+                document.getElementById("fileSize").innerText =
+                    (file.size / (1024 * 1024)).toFixed(2) + " MB";
+            }
         });
 
-        const data = await res.json();
+        async function uploadFile() {
 
-        if (!data.file_id) throw new Error("Upload failed");
+            const file = fileInput.files[0];
 
-        fileId = data.file_id;
-
-        updateStatus("Processing started (1–3 mins)...", 30);
-
-        pollStatus(fileId);
-
-    } catch (err) {
-        showError(err.message);
-    }
-}
-
-async function pollStatus(fileId) {
-
-    try {
-
-        const res = await fetch(`/status/${fileId}`);
-        const data = await res.json();
-
-        if (data.status === "processed") {
-
-            updateStatus("✅ Processing Completed Successfully", 100);
-
-            document.getElementById("results").classList.remove("hidden");
-
-            document.getElementById("transcript").innerText =
-                data.ml_results?.transcript?.text || "No transcript";
-
-            document.getElementById("summary").innerText =
-                data.ml_results?.summary?.text || "No summary";
-
-            const questions = data.ml_results?.questions?.questions || [];
-            const qList = document.getElementById("questions");
-            qList.innerHTML = "";
-
-            if (questions.length === 0) {
-                qList.innerHTML = "<li>No questions generated</li>";
-            } else {
-                questions.forEach(q => {
-                    const li = document.createElement("li");
-                    li.innerText = q;
-                    qList.appendChild(li);
-                });
+            if (!file) {
+                alert("Select a file first");
+                return;
             }
 
-            uploadBtn.disabled = false;
-            return;
+            uploadBtn.disabled = true;
+
+            document.getElementById("statusCard").classList.remove("hidden");
+            updateStatus("Uploading video...", 10);
+            lastReportedProgress = 10;
+
+            try {
+
+                const formData = new FormData();
+                formData.append("file", file);
+
+                const res = await fetch("/upload", {
+                    method: "POST",
+                    body: formData
+                });
+
+                const data = await res.json();
+
+                if (!data.file_id) throw new Error("Upload failed");
+
+                fileId = data.file_id;
+                processingStartTime = Date.now();
+
+                updateStatus("Processing started (1-3 mins)...", 20);
+                lastReportedProgress = 20;
+
+                pollStatus(fileId);
+
+            } catch (err) {
+                showError(err.message);
+            }
         }
 
-        updateStatus("Processing...", Math.min(90, Math.random()*80 + 20));
+        async function pollStatus(fileId) {
 
-        setTimeout(() => pollStatus(fileId), 2000);
+            try {
 
-    } catch (err) {
-        showError("Error fetching status");
-    }
-}
+                const res = await fetch(`/status/${fileId}`);
+                const data = await res.json();
 
-function updateStatus(text, progress) {
-    document.getElementById("statusText").innerText = text;
-    document.getElementById("progressBar").style.width = progress + "%";
-}
+                if (data.status === "processed") {
 
-function showError(msg) {
-    document.getElementById("statusText").innerText = "❌ " + msg;
-    uploadBtn.disabled = false;
-}
+                    updateStatus("Processing Completed Successfully", 100);
 
-// ✅ PDF Download
-function downloadPDF() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
+                    document.getElementById("results").classList.remove("hidden");
 
-    const transcript = document.getElementById("transcript").innerText;
-    const summary = document.getElementById("summary").innerText;
-    const questions = Array.from(document.querySelectorAll("#questions li"))
-        .map(li => li.innerText)
-        .join("\n");
+                    document.getElementById("transcript").innerText =
+                        data.ml_results?.transcript?.text || "No transcript";
 
-    let y = 10;
+                    document.getElementById("summary").innerText =
+                        data.ml_results?.summary?.text || "No summary";
 
-    doc.setFontSize(16);
-    doc.text("V2AI Report", 10, y);
+                    const questions = data.ml_results?.questions?.questions || [];
+                    const qList = document.getElementById("questions");
+                    qList.innerHTML = "";
 
-    y += 10;
-    doc.setFontSize(12);
+                    if (questions.length === 0) {
+                        qList.innerHTML = "<li>No questions generated</li>";
+                    } else {
+                        questions.forEach(q => {
+                            const li = document.createElement("li");
+                            li.innerText = q;
+                            qList.appendChild(li);
+                        });
+                    }
 
-    doc.text("Transcript:", 10, y);
-    y += 8;
-    doc.text(doc.splitTextToSize(transcript, 180), 10, y);
+                    uploadBtn.disabled = false;
+                    return;
+                }
 
-    y += 50;
-    doc.text("Summary:", 10, y);
-    y += 8;
-    doc.text(doc.splitTextToSize(summary, 180), 10, y);
+                // Calculate progress based on elapsed time
+                // Expect processing to take 120-180 seconds on average
+                const elapsedSeconds = (Date.now() - processingStartTime) / 1000;
+                const timeBasedProgress = Math.min(90, 20 + (elapsedSeconds / 180) * 70);
 
-    y += 50;
-    doc.text("Questions:", 10, y);
-    y += 8;
-    doc.text(doc.splitTextToSize(questions, 180), 10, y);
+                // Ensure progress never goes backwards
+                const newProgress = Math.max(lastReportedProgress, Math.floor(timeBasedProgress));
 
-    doc.save("V2AI_Report.pdf");
-}
+                updateStatus("Processing...", newProgress);
+                lastReportedProgress = newProgress;
 
-</script>
+                setTimeout(() => pollStatus(fileId), 2000);
+
+            } catch (err) {
+                showError("Error fetching status");
+            }
+        }
+
+        function updateStatus(text, progress) {
+            const progressBar = document.getElementById("progressBar");
+            document.getElementById("statusText").innerText = text;
+            progressBar.style.width = progress + "%";
+            progressBar.setAttribute("aria-valuenow", progress);
+        }
+
+        function showError(msg) {
+            document.getElementById("statusText").innerText = "ERROR: " + msg;
+            uploadBtn.disabled = false;
+        }
+
+        // PDF Download
+        function downloadPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            const transcript = document.getElementById("transcript").innerText;
+            const summary = document.getElementById("summary").innerText;
+            const questions = Array.from(document.querySelectorAll("#questions li"))
+                .map(li => li.innerText)
+                .join("\n");
+
+            let y = 10;
+
+            doc.setFontSize(16);
+            doc.text("V2AI Report", 10, y);
+
+            y += 10;
+            doc.setFontSize(12);
+
+            doc.text("Transcript:", 10, y);
+            y += 8;
+            doc.text(doc.splitTextToSize(transcript, 180), 10, y);
+
+            y += 50;
+            doc.text("Summary:", 10, y);
+            y += 8;
+            doc.text(doc.splitTextToSize(summary, 180), 10, y);
+
+            y += 50;
+            doc.text("Questions:", 10, y);
+            y += 8;
+            doc.text(doc.splitTextToSize(questions, 180), 10, y);
+
+            doc.save("V2AI_Report.pdf");
+        }
+
+    </script>
 
 </body>
+
 </html>
