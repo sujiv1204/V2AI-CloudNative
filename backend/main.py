@@ -14,9 +14,9 @@ from gcp_service import upload_to_gcs, store_metadata
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from fastapi import Request
+from load_balancer import get_load_balancer
 
 templates = Jinja2Templates(directory="templates")
-
 
 logging.basicConfig(level=settings.log_level)
 logger = logging.getLogger(__name__)
@@ -75,28 +75,28 @@ async def process_ml_pipeline(file_id: str, audio_path: str):
         summary_result = None
         qa_result = None
 
+        lb = get_load_balancer()
+        
         with open(audio_path, "rb") as audio_file:
             files = {"file": (f"{file_id}.wav", audio_file, "audio/wav")}
-            logger.info("Calling /transcript endpoint...")
-            transcript_result = await call_ml_endpoint("/transcript", method="POST", files=files)
+            logger.info("Calling /transcript endpoint via load balancer...")
+            transcript_result = await lb.call_ml_service("/transcript", files=files)
             logger.info(f"Transcript response: {transcript_result}")
 
         if transcript_result and transcript_result.get("status") == "success":
             transcript_text = transcript_result.get("text", "")
 
             if transcript_text:
-                logger.info("Calling /summarize endpoint...")
-                summary_result = await call_ml_endpoint(
+                logger.info("Calling /summarize endpoint via load balancer...")
+                summary_result = await lb.call_ml_service(
                     "/summarize",
-                    method="POST",
                     json={"text": transcript_text}
                 )
                 logger.info(f"Summary response: {summary_result}")
 
-                logger.info("Calling /qa endpoint...")
-                qa_result = await call_ml_endpoint(
+                logger.info("Calling /qa endpoint via load balancer...")
+                qa_result = await lb.call_ml_service(
                     "/qa",
-                    method="POST",
                     json={"text": transcript_text}
                 )
                 logger.info(f"QA response: {qa_result}")
@@ -192,6 +192,65 @@ async def upload_video(file: UploadFile = File(...), background_tasks: Backgroun
             status_code=500,
             content={"error": str(e), "file_id": file_id}
         )
+
+
+@app.post("/summarize")
+async def summarize_proxy(req: dict):
+    """Proxy /summarize request to ML Pipeline via Load Balancer."""
+    try:
+        lb = get_load_balancer()
+        return await lb.call_ml_service("/summarize", json=req)
+    except Exception as e:
+        logger.error(f"Summarize proxy failed: {str(e)}")
+        return JSONResponse(
+            status_code=502,
+            content={"error": "ML Pipeline unreachable or failed", "detail": str(e)}
+        )
+
+
+@app.post("/qa")
+async def qa_proxy(req: dict):
+    """Proxy /qa request to ML Pipeline via Load Balancer."""
+    try:
+        lb = get_load_balancer()
+        return await lb.call_ml_service("/qa", json=req)
+    except Exception as e:
+        logger.error(f"QA proxy failed: {str(e)}")
+        return JSONResponse(
+            status_code=502,
+            content={"error": "ML Pipeline unreachable or failed", "detail": str(e)}
+        )
+
+
+@app.get("/debug/ml")
+async def debug_ml_connectivity():
+    """Diagnostic endpoint to check connectivity to ML instances."""
+    lb = get_load_balancer()
+    results = {}
+    
+    for url in lb.urls:
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(f"{url}/health")
+                results[url] = {
+                    "reachable": resp.status_code == 200,
+                    "status_code": resp.status_code,
+                    "response": resp.json()
+                }
+        except Exception as e:
+            results[url] = {
+                "reachable": False,
+                "error": str(e)
+            }
+            
+    return {
+        "configured_urls": lb.urls,
+        "connectivity": results,
+        "environment": {
+            "ML_PIPELINE_URLS": os.getenv("ML_PIPELINE_URLS"),
+            "ML_PIPELINE_URL": os.getenv("ML_PIPELINE_URL")
+        }
+    }
 
 
 @app.get("/status/{file_id}")

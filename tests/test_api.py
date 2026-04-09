@@ -1,7 +1,7 @@
 import requests
 import pytest
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://34.131.164.21:8000"
 
 
 @pytest.fixture
