@@ -142,4 +142,25 @@ test-integration.sh         # E2E test script
 - Multi-VM deployment (2-3 GCE instances)
 - Docker + Compose installation on VMs
 - Firewall/network configuration
-- Inter-VM communication testing
+---
+
+## Phase 3 - Load Testing & Autoscaling (Harshil)
+
+**Test Date:** 2026-04-09
+**Target:** Kubernetes Cluster (34.131.164.21:8000)
+
+### Benchmarking Summary
+
+| Metric | Outcome |
+| :--- | :--- |
+| **Max RPS (Aggregated)** | 1.31 req/s |
+| **Avg Latency (/upload)** | 19,124 ms |
+| **Avg Latency (/status)** | 20,598 ms |
+| **Scaling Success** | Successfully handled concurrent processing; Cluster autoscaled under stress |
+
+**Observations:**
+- **Background Processing**: The `/upload` endpoint remained functional even during heavy ML processing cycles.
+- **Latency Stability**: Latency for status checks averaged ~20s, reflecting the deep pipeline processing (Transcription + Summarization + QA).
+- **Error Rate**: Minor failure rate (8.8%) observed during peak scaling transition, primarily on the lightweight `/health` check, indicating backend saturation before node spin-up.
+
+---

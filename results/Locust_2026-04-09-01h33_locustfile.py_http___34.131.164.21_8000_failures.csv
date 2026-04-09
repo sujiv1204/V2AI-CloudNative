@@ -1,0 +1,6 @@
+Method,Name,Error,Occurrences
+GET,/health,"ConnectionResetError(104, 'Connection reset by peer')",11
+GET,/health,RemoteDisconnected('Remote end closed connection without response'),2
+GET,/status/[file_id],RemoteDisconnected('Remote end closed connection without response'),1
+GET,/status/[file_id],"ConnectionResetError(104, 'Connection reset by peer')",4
+POST,/upload,CatchResponseError('Upload failed (0): '),1
