@@ -1,0 +1,3 @@
+Method,Name,Error,Occurrences
+GET,/health,RemoteDisconnected('Remote end closed connection without response'),1
+POST,/upload,CatchResponseError('Upload failed (0): '),1
