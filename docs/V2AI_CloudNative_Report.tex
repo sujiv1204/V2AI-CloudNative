@@ -1,0 +1,251 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{setspace}
+
+\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue}
+\setlength{\parskip}{6pt}
+\setlength{\parindent}{0pt}
+\onehalfspacing
+
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!5}
+}
+
+\title{Cloud-Native V2AI: Scalable Lecture Video Understanding as a Service}
+\author{V2AI-CloudNative Project Team}
+\date{April 2026}
+
+\begin{document}
+\maketitle
+
+\section{Problem Statement}
+This project addresses a core cloud-computing problem: how to deploy and operate a deep-learning inference pipeline for lecture-video understanding with reliable performance under concurrent demand. The challenge is not model training, but production operation: asynchronous orchestration, service decomposition, autoscaling, observability, and cost/performance trade-offs between a VM-based deployment and managed Kubernetes. This is important because AI inference workloads are bursty, resource-intensive, and latency-sensitive; poor architecture causes tail-latency spikes, failed requests, and resource waste.
+
+\section{Literature Reference}
+\begin{enumerate}
+    \item \textbf{Whisper} (Radford et al., 2022) introduced robust weakly supervised speech recognition at scale and motivated practical multilingual ASR deployment for noisy real-world inputs.
+    \item \textbf{BART} (Lewis et al., 2020) showed strong abstractive summarization performance, relevant for transcript condensation.
+    \item \textbf{T5} (Raffel et al., 2020) unified NLP tasks in text-to-text form and supports compact question-generation pipelines (e.g., \texttt{t5-small}).
+    \item \textbf{Kubernetes reliability and scaling literature} (Burns et al., 2016; Hightower et al., 2017) motivates declarative orchestration and autoscaling for microservices.
+    \item \textbf{Google SRE and cloud observability guidance} (Beyer et al., 2016) frames SLO-centric monitoring with tail latency and error budgets.
+\end{enumerate}
+
+\textbf{Limitations in existing approaches:} many studies benchmark models in isolation, while production bottlenecks arise from orchestration overhead, cold starts, memory pressure, and inter-service network behavior. This project bridges that gap using end-to-end service benchmarks.
+
+\section{Existing Results}
+Prior in-repo baseline outcomes (Day 4 single/multi-VM style deployment and early load runs) indicate that the pipeline is functional but latency-heavy under stress.
+
+\begin{table}[H]
+\centering
+\caption{Existing baseline outcomes from prior project stages}
+\begin{tabular}{p{5.2cm}p{8.8cm}}
+\toprule
+\textbf{Source} & \textbf{Key outcomes} \\
+\midrule
+\texttt{DAY4\_REPORT.md}, \texttt{scripts/day4-deployment-guide.md} & End-to-end processing of 49MB lecture file: transcription 72.95s, summarization 64.66s, QA 10.41s, total \textasciitilde149s. \\
+\texttt{PROGRESS\_REPORT.md} + \texttt{Locust\_...\_requests.csv} & Under concurrent load, aggregated throughput around 1.31 req/s; high endpoint average latencies (/upload \textasciitilde19.1s, /status \textasciitilde20.6s), and non-trivial failure rate (\textasciitilde8.8\%). \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\fbox{\parbox{0.92\linewidth}{\centering Placeholder: Insert baseline latency/throughput chart from Day 4 and early Locust artifacts.}}
+\caption{Placeholder for baseline performance visualization}
+\end{figure}
+
+\section{Your Implementation}
+The implementation uses a cloud-native microservice architecture with two core services: (1) a FastAPI backend orchestrator and (2) a FastAPI ML pipeline service. It integrates GCS/Firestore persistence and monitoring via Prometheus/Grafana.
+
+\subsection*{Technology Stack}
+\begin{itemize}
+    \item \textbf{Models}: Whisper (ASR), BART (summarization), T5-small (question generation)
+    \item \textbf{Runtime}: Python + FastAPI + Docker
+    \item \textbf{Cloud}: GCP (Compute Engine baseline, GKE Autopilot for managed orchestration)
+    \item \textbf{Storage}: Google Cloud Storage + Firestore
+    \item \textbf{Orchestration}: Kubernetes Deployments/Services + HPA
+    \item \textbf{Load/Observability}: Locust, Prometheus, Grafana
+\end{itemize}
+
+\subsection*{Step-by-step implementation summary}
+\begin{enumerate}
+    \item Containerize backend and ML inference services.
+    \item Deploy baseline on VM-based Docker Compose for initial end-to-end verification.
+    \item Package and push images for Kubernetes deployment.
+    \item Deploy backend and ML services to GKE with resource requests/limits and health probes.
+    \item Configure HPA for CPU-based horizontal scaling.
+    \item Install and validate Prometheus/Grafana monitoring stack.
+    \item Execute Locust workloads (smoke and mixed end-to-end traffic), export CSV metrics.
+    \item Compare baseline VM behavior vs GKE behavior using throughput, latency percentiles, and failure rates.
+\end{enumerate}
+
+\section{Your Results}
+\begin{table}[H]
+\centering
+\caption{Measured GKE benchmark outcomes from repository CSV artifacts}
+\begin{tabular}{lrrrrrr}
+\toprule
+\textbf{Run} & \textbf{Requests} & \textbf{Failures} & \textbf{Fail \%} & \textbf{Req/s} & \textbf{Avg (ms)} & \textbf{p95 (ms)} \\
+\midrule
+GKE smoke (\texttt{gke\_stats.csv}) & 95 & 3 & 3.16\% & 1.36 & 573.63 & 880 \\
+GKE end-to-end (\texttt{gke-e2e\_stats.csv}) & 274 & 2 & 0.73\% & 3.09 & 1787.23 & 5000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Endpoint-level GKE mixed-load behavior (\texttt{gke-e2e\_stats.csv}):
+\begin{itemize}
+    \item \texttt{/health}: avg 1241.73 ms
+    \item \texttt{/status/[file\_id]}: avg 1798.75 ms
+    \item \texttt{/upload}: avg 4285.60 ms
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\fbox{\parbox{0.92\linewidth}{\centering Placeholder: Insert Grafana panel screenshot for CPU/memory utilization during GKE load run.}}
+\caption{Placeholder for resource utilization dashboard}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\fbox{\parbox{0.92\linewidth}{\centering Placeholder: Insert HPA and pod-scaling timeline image.}}
+\caption{Placeholder for autoscaling evidence}
+\end{figure}
+
+\section{Comparison and Analysis}
+\begin{table}[H]
+\centering
+\caption{Baseline vs managed-Kubernetes comparison}
+\begin{tabular}{p{4.1cm}p{3.0cm}p{3.0cm}p{4.2cm}}
+\toprule
+\textbf{Metric} & \textbf{Baseline VM/Multi-VM} & \textbf{GKE (E2E)} & \textbf{Observation} \\
+\midrule
+Throughput (req/s) & \textasciitilde1.31 & 3.09 & \textasciitilde2.36$\times$ higher in GKE run. \\
+Failure rate & \textasciitilde8.8\% & 0.73\% & Significant reliability improvement under tested mix. \\
+Average /upload latency & 19124 ms & 4285.60 ms & Strong reduction for upload-facing latency. \\
+Tail behavior (p95) & Very high in stress run (up to tens of seconds by endpoint) & 5000 ms aggregated (E2E run) & Tail latency improved but still non-trivial for deep inference path. \\
+Operational model & Manual VM lifecycle + compose & Managed orchestration + HPA + built-in service discovery & Better elasticity/operations in Kubernetes. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Trade-offs:} GKE improves elasticity and observed reliability, but cluster orchestration introduces complexity (resource tuning, probe timing, startup warm-up, storage limits). ML model memory and cold-start effects remain primary bottlenecks for tail latency.
+
+\section{Conclusion}
+Cloud-Native V2AI demonstrates that a production-style AI inference workflow can be substantially stabilized and scaled by moving from VM-centric deployment to managed Kubernetes with autoscaling and observability. The project validates the engineering value of asynchronous orchestration, service-level metrics, and percentile-driven analysis for AI-as-a-Service systems.
+
+\section{Architecture Diagram of Implementation}
+\subsection*{Mermaid code (editable source)}
+\begin{lstlisting}
+flowchart LR
+    U[Clients / Locust] --> LB[LoadBalancer Service]
+    LB --> B1[Backend Pod 1]
+    LB --> B2[Backend Pod 2]
+
+    B1 --> ML[ML Pipeline Service]
+    B2 --> ML
+
+    ML --> M1[ML Pod 1\nWhisper + BART + T5]
+    ML --> M2[ML Pod 2\nWhisper + BART + T5]
+    ML --> M3[ML Pod N (HPA)]
+
+    B1 --> GCS[(GCS: videos/audio)]
+    B2 --> GCS
+    B1 --> FS[(Firestore: metadata/results)]
+    B2 --> FS
+
+    PR[Prometheus] --> G[Grafana]
+    PR --> B1
+    PR --> B2
+    PR --> M1
+    PR --> M2
+
+    HPA[Horizontal Pod Autoscaler] --> ML
+\end{lstlisting}
+
+\begin{figure}[H]
+\centering
+\fbox{\parbox{0.92\linewidth}{\centering Placeholder: Insert rendered architecture diagram image generated from Mermaid code.}}
+\caption{Placeholder for architecture figure}
+\end{figure}
+
+\section{Future Scope}
+\begin{itemize}
+    \item Add queue-based decoupling (e.g., Pub/Sub) for stronger burst absorption and retry semantics.
+    \item Introduce model specialization (small/large variants) with dynamic routing based on file duration and SLA target.
+    \item Add GPU node pools and cost-aware autoscaling policies.
+    \item Add canary deployments and automatic rollback with SLO-based alerting.
+    \item Extend to hybrid-cloud or multi-region deployment for resilience.
+\end{itemize}
+
+\section*{Appendix A: Repository Documentation Sources Used}
+\begin{longtable}{p{0.32\linewidth}p{0.62\linewidth}}
+\toprule
+\textbf{File} & \textbf{Contribution to this report} \\
+\midrule
+\endhead
+\texttt{README.md} & Architecture overview, service decomposition, endpoint structure, deployment modes. \\
+\texttt{PROGRESS\_REPORT.md} & Historical benchmark context and pipeline behavior under load. \\
+\texttt{DAY4\_REPORT.md} & Baseline single-VM performance and deployment outcomes. \\
+\texttt{docs/DAY5\_REPORT.md} & GKE deployment details, stability fixes, and final test status. \\
+\texttt{docs/GKE\_BENCHMARK.md} & GKE benchmark setup, outcomes, and monitoring deployment context. \\
+\texttt{docs/API\_DOCS.md} & Endpoint contracts and processing flow documentation. \\
+\texttt{docs/GKE\_INTEGRATION\_GUIDE.md} & Operational integration and deployment workflow references. \\
+\texttt{docs/MASTER\_PLAN.md} & Project goals, architecture framing, and role/task mapping. \\
+\texttt{docs/C1\_TASKS.md} & Kubernetes/HPA/monitoring task-level implementation references. \\
+\texttt{docs/C2\_TASKS.md} & Firestore/UI progression context and validation notes. \\
+\texttt{docs/C3\_TASKS.md} & Multi-VM load-testing and scaling workflow context. \\
+\texttt{tests/C3\_GUIDE.md} & Execution notes for multi-VM and Locust benchmarking. \\
+\texttt{tests/DIRECT\_ML\_TESTING.md} & Direct ML load-test patterns and endpoint-level testing context. \\
+\texttt{tests/TROUBLESHOOTING.md} & Locust failure diagnosis patterns and test hygiene. \\
+\texttt{scripts/day4-deployment-guide.md} & Detailed baseline deployment evidence and stage timing outputs. \\
+\texttt{test-integration.sh} & End-to-end validation semantics and pass/fail criteria. \\
+\texttt{tests/locustfile.py} & Workload mix definition for benchmark interpretation. \\
+\bottomrule
+\end{longtable}
+
+\section*{Appendix B: CSV Artifacts Used}
+\begin{longtable}{p{0.45\linewidth}p{0.49\linewidth}}
+\toprule
+\textbf{CSV artifact} & \textbf{Use in report} \\
+\midrule
+\endhead
+\texttt{results/gke\_stats.csv} & GKE smoke-run aggregated throughput/latency/failures. \\
+\texttt{results/gke\_failures.csv} & GKE smoke failure signatures. \\
+\texttt{results/gke\_stats\_history.csv} & Time-series throughput and percentile trend context. \\
+\texttt{results/gke-smoke\_stats.csv} & Additional smoke validation run metrics. \\
+\texttt{results/gke-smoke\_failures.csv} & Smoke-run failures. \\
+\texttt{results/gke-smoke\_stats\_history.csv} & Smoke-run temporal progression. \\
+\texttt{results/gke-smoke\_exceptions.csv} & Smoke-run exception capture. \\
+\texttt{results/gke-e2e\_stats.csv} & Mixed end-to-end workload main KPI source. \\
+\texttt{results/gke-e2e\_failures.csv} & Mixed-run failure taxonomy. \\
+\texttt{results/gke-e2e\_stats\_history.csv} & Mixed-run timeline and percentile changes. \\
+\texttt{results/gke-e2e\_exceptions.csv} & Mixed-run exception capture. \\
+\texttt{results/gke\_exceptions.csv} & Health-focused run exception capture. \\
+\texttt{results/Locust\_2026-04-09-01h33\_locustfile.py\_http\_\_\_34.131.164.21\_8000\_requests.csv} & Baseline endpoint-level VM/multi-VM latency and request volume. \\
+\texttt{results/Locust\_2026-04-09-01h33\_locustfile.py\_http\_\_\_34.131.164.21\_8000\_failures.csv} & Baseline failure patterns and counts. \\
+\texttt{results/Locust\_2026-04-09-01h33\_locustfile.py\_http\_\_\_34.131.164.21\_8000\_exceptions (Copy).csv} & Baseline exception artifact reference. \\
+\bottomrule
+\end{longtable}
+
+\section*{References}
+\begin{enumerate}
+    \item A. Radford et al., ``Robust Speech Recognition via Large-Scale Weak Supervision,'' \emph{arXiv:2212.04356}, 2022.
+    \item M. Lewis et al., ``BART: Denoising Sequence-to-Sequence Pre-training for Natural Language Generation, Translation, and Comprehension,'' \emph{ACL}, 2020.
+    \item C. Raffel et al., ``Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer,'' \emph{JMLR}, 2020.
+    \item B. Burns, B. Grant, D. Oppenheimer, E. Brewer, and J. Wilkes, ``Borg, Omega, and Kubernetes,'' \emph{Communications of the ACM}, 2016.
+    \item B. Beyer, C. Jones, J. Petoff, and N. Murphy, \emph{Site Reliability Engineering}. O'Reilly, 2016.
+\end{enumerate}
+
+\end{document}

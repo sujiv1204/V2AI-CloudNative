@@ -1,0 +1,24 @@
+flowchart LR
+    U[Clients / Locust] --> LB[LoadBalancer Service]
+    LB --> B1[Backend Pod 1]
+    LB --> B2[Backend Pod 2]
+
+    B1 --> ML[ML Pipeline Service]
+    B2 --> ML
+
+    ML --> M1[ML Pod 1\nWhisper + BART + T5]
+    ML --> M2[ML Pod 2\nWhisper + BART + T5]
+    ML --> M3[ML Pod N (HPA)]
+
+    B1 --> GCS[(GCS: videos/audio)]
+    B2 --> GCS
+    B1 --> FS[(Firestore: metadata/results)]
+    B2 --> FS
+
+    PR[Prometheus] --> G[Grafana]
+    PR --> B1
+    PR --> B2
+    PR --> M1
+    PR --> M2
+
+    HPA[Horizontal Pod Autoscaler] --> ML
