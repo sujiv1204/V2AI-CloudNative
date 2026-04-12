@@ -77,6 +77,27 @@ kubectl get secret -n monitoring prometheus-grafana -o jsonpath='{.data.admin-us
 kubectl get secret -n monitoring prometheus-grafana -o jsonpath='{.data.admin-password}' | base64 -d; echo
 ```
 
+### 7) Fix for "No data" in Pod/Namespace CPU-Memory dashboards (GKE Autopilot)
+
+If Grafana dashboards show no CPU/memory data for namespace/pod views, it usually means Prometheus is not scraping kubelet/cAdvisor metrics.
+
+On this cluster, `kube-system` is managed and cannot be modified directly, so the kubelet scrape target was exposed in `monitoring` namespace and the existing kubelet ServiceMonitor was pointed there.
+
+Apply:
+
+```bash
+kubectl apply -f k8s/monitoring-kubelet-endpoints-monitoring-ns.yaml
+kubectl patch servicemonitor -n monitoring prometheus-kube-prometheus-kubelet \
+  --type='json' \
+  -p='[{"op":"replace","path":"/spec/namespaceSelector/matchNames","value":["monitoring"]}]'
+```
+
+Verification query checks (from Prometheus):
+
+- `up{job="kubelet"}` should return >0 results
+- `sum(rate(container_cpu_usage_seconds_total{namespace="v2ai",container!="",image!=""}[5m]))` should return a value
+- `sum(container_memory_working_set_bytes{namespace="v2ai",container!="",image!=""})` should return a value
+
 ---
 
 ## Environment and Access Validation

@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubelet
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: kubelet
+    k8s-app: kubelet
+spec:
+  clusterIP: None
+  ports:
+  - name: https-metrics
+    port: 10250
+    targetPort: 10250
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: kubelet
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: kubelet
+    k8s-app: kubelet
+subsets:
+- addresses:
+  - ip: 10.128.0.8
+    nodeName: gk3-v2ai-cluster-nap-191ei95c-06876a97-xljl
+  - ip: 10.128.15.231
+    nodeName: gk3-v2ai-cluster-nap-191ei95c-47dba4fd-bcfq
+  - ip: 10.128.0.13
+    nodeName: gk3-v2ai-cluster-nap-191ei95c-e0785ea8-kj8g
+  - ip: 10.128.0.42
+    nodeName: gk3-v2ai-cluster-pool-2-72f8f83d-8g8f
+  ports:
+  - name: https-metrics
+    port: 10250
+    protocol: TCP

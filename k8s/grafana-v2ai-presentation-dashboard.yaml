@@ -1,0 +1,118 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-v2ai-presentation-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  v2ai-presentation-dashboard.json: |
+    {
+      "id": null,
+      "uid": "v2ai-presentation",
+      "title": "V2AI Presentation (Autopilot-safe)",
+      "tags": ["v2ai", "presentation", "gke"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "10s",
+      "panels": [
+        {
+          "type": "stat",
+          "title": "V2AI Running Pods",
+          "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {"expr": "sum(kube_pod_status_phase{namespace=\"v2ai\",phase=\"Running\"})", "refId": "A"}
+          ],
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}}
+        },
+        {
+          "type": "stat",
+          "title": "CPU Requests (v2ai cores)",
+          "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {"expr": "sum(kube_pod_container_resource_requests{namespace=\"v2ai\",resource=\"cpu\"})", "refId": "A"}
+          ],
+          "fieldConfig": {"defaults": {"unit": "cores"}},
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}}
+        },
+        {
+          "type": "stat",
+          "title": "Memory Requests (v2ai GiB)",
+          "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {"expr": "sum(kube_pod_container_resource_requests{namespace=\"v2ai\",resource=\"memory\"})/1024/1024/1024", "refId": "A"}
+          ],
+          "fieldConfig": {"defaults": {"unit": "gbytes"}},
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}}
+        },
+        {
+          "type": "stat",
+          "title": "Available Deployment Replicas",
+          "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {"expr": "sum(kube_deployment_status_replicas_available{namespace=\"v2ai\"})", "refId": "A"}
+          ],
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}}
+        },
+        {
+          "type": "timeseries",
+          "title": "v2ai CPU Requests vs Limits (cores)",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {"expr": "sum(kube_pod_container_resource_requests{namespace=\"v2ai\",resource=\"cpu\"})", "legendFormat": "requests", "refId": "A"},
+            {"expr": "sum(kube_pod_container_resource_limits{namespace=\"v2ai\",resource=\"cpu\"})", "legendFormat": "limits", "refId": "B"}
+          ],
+          "fieldConfig": {"defaults": {"unit": "cores"}}
+        },
+        {
+          "type": "timeseries",
+          "title": "v2ai Memory Requests vs Limits (GiB)",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {"expr": "sum(kube_pod_container_resource_requests{namespace=\"v2ai\",resource=\"memory\"})/1024/1024/1024", "legendFormat": "requests", "refId": "A"},
+            {"expr": "sum(kube_pod_container_resource_limits{namespace=\"v2ai\",resource=\"memory\"})/1024/1024/1024", "legendFormat": "limits", "refId": "B"}
+          ],
+          "fieldConfig": {"defaults": {"unit": "gbytes"}}
+        },
+        {
+          "type": "timeseries",
+          "title": "Cluster Container CPU Usage Rate (all namespaces)",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {"expr": "sum(rate(container_cpu_usage_seconds_total{container!=\"\"}[5m]))", "legendFormat": "cpu usage", "refId": "A"}
+          ],
+          "fieldConfig": {"defaults": {"unit": "cores"}}
+        },
+        {
+          "type": "timeseries",
+          "title": "Cluster Container Memory Working Set (GiB, all namespaces)",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {"expr": "sum(container_memory_working_set_bytes{container!=\"\"})/1024/1024/1024", "legendFormat": "memory working set", "refId": "A"}
+          ],
+          "fieldConfig": {"defaults": {"unit": "gbytes"}}
+        },
+        {
+          "type": "table",
+          "title": "v2ai Deployments (desired/available)",
+          "gridPos": {"h": 7, "w": 24, "x": 0, "y": 20},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {"expr": "kube_deployment_spec_replicas{namespace=\"v2ai\"}", "format": "table", "instant": true, "refId": "A"},
+            {"expr": "kube_deployment_status_replicas_available{namespace=\"v2ai\"}", "format": "table", "instant": true, "refId": "B"}
+          ]
+        }
+      ],
+      "templating": {"list": []},
+      "time": {"from": "now-1h", "to": "now"},
+      "timepicker": {}
+    }
