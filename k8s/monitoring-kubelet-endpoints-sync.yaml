@@ -1,0 +1,153 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubelet
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: kubelet
+    k8s-app: kubelet
+spec:
+  clusterIP: None
+  ports:
+  - name: https-metrics
+    port: 10250
+    targetPort: 10250
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubelet-endpoints-sync
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubelet-endpoints-sync-nodes
+rules:
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubelet-endpoints-sync-nodes
+subjects:
+- kind: ServiceAccount
+  name: kubelet-endpoints-sync
+  namespace: monitoring
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubelet-endpoints-sync-nodes
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kubelet-endpoints-sync
+  namespace: monitoring
+rules:
+- apiGroups: [""]
+  resources: ["endpoints", "services"]
+  verbs: ["get", "list", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kubelet-endpoints-sync
+  namespace: monitoring
+subjects:
+- kind: ServiceAccount
+  name: kubelet-endpoints-sync
+  namespace: monitoring
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kubelet-endpoints-sync
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: kubelet-endpoints-sync
+  namespace: monitoring
+spec:
+  schedule: "*/5 * * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: kubelet-endpoints-sync
+          restartPolicy: OnFailure
+          containers:
+          - name: sync
+            image: registry.k8s.io/kubectl:v1.34.1
+            command: ["/bin/bash", "-c"]
+            args:
+            - |
+              set -eu
+              ADDRS="$(kubectl get nodes -o jsonpath='{range .items[*]}{.status.addresses[?(@.type=="InternalIP")].address}{"\t"}{.metadata.name}{"\n"}{end}' | awk -F '\t' 'NF>=2{printf "  - ip: %s\n    nodeName: %s\n",$1,$2}')"
+              if [ -z "$ADDRS" ]; then
+                echo "No node internal IPs found"
+                exit 1
+              fi
+              {
+                echo "apiVersion: v1"
+                echo "kind: Endpoints"
+                echo "metadata:"
+                echo "  name: kubelet"
+                echo "  namespace: monitoring"
+                echo "  labels:"
+                echo "    app.kubernetes.io/name: kubelet"
+                echo "    k8s-app: kubelet"
+                echo "subsets:"
+                echo "- addresses:"
+                printf "%s\n" "$ADDRS"
+                echo "  ports:"
+                echo "  - name: https-metrics"
+                echo "    port: 10250"
+                echo "    protocol: TCP"
+              } | kubectl apply -f -
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: v2ai-kubelet
+  namespace: monitoring
+  labels:
+    release: prometheus
+spec:
+  jobLabel: k8s-app
+  namespaceSelector:
+    matchNames:
+    - monitoring
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kubelet
+      k8s-app: kubelet
+  endpoints:
+  - port: https-metrics
+    scheme: https
+    bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    tlsConfig:
+      caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      insecureSkipVerify: true
+    honorLabels: true
+  - port: https-metrics
+    path: /metrics/cadvisor
+    interval: 10s
+    scheme: https
+    bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    tlsConfig:
+      caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      insecureSkipVerify: true
+    honorLabels: true
+  - port: https-metrics
+    path: /metrics/probes
+    scheme: https
+    bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    tlsConfig:
+      caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      insecureSkipVerify: true
+    honorLabels: true

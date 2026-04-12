@@ -48,3 +48,4 @@ service-account-key.json
 *.mp4
 *.wav
 *.mov
+*.tex
